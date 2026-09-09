@@ -1,0 +1,14 @@
+{
+  "name": "win98-browser-spike",
+  "private": true,
+  "type": "module",
+  "version": "0.0.1",
+  "description": "M0 spike: N js-dos (DOSBox-X wasm) instances in tiled browser windows, driven programmatically",
+  "scripts": {
+    "serve": "node serve.mjs",
+    "grid": "node grid.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.50.0"
+  }
+}
