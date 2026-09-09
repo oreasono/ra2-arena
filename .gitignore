@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+data/replays/
+data/logs/
+data/screens/
+# Game assets and OS images are never committed. Bring your own retail copy.
+*.mix
+*.jsdos
+*.qcow2
+*.img
+assets/
+images/
