@@ -1,63 +1,61 @@
-// Import RA2 assets into one client profile from the local asset server, then report the next screen.
+// Import RA2 assets into one client profile from the local asset server.
+//
+// Two things this has to get right, both learned the hard way:
+//  - The URL field is a controlled component. Setting .value programmatically leaves the app's own
+//    state on its default, so it submits the wrong URL. Type real keystrokes instead.
+//  - The client is served over https. A plain http asset URL produces no request at all, with no
+//    console message, so the asset server must speak https (self-signed is fine with
+//    --ignore-certificate-errors).
+// Ground truth for "did it work" is the asset server log, not the page text.
 import { chromium } from "playwright";
-import { writeFileSync } from "node:fs";
 
 const profile = process.env.PROFILE ?? "./profiles/p0";
-const url = process.env.ASSET_URL ?? "http://127.0.0.1:8124/ra2-assets.zip";
+const url = process.env.ASSET_URL ?? "https://127.0.0.1:8125/ra2-assets.zip";
 const IMPORT_SCREEN = "Locate original game assets";
 
 const ctx = await chromium.launchPersistentContext(profile, {
-    headless: false, viewport: null,
-    args: ["--window-position=0,25", "--window-size=1280,860",
-           // The client is served over https; the asset URL is a local http server. Chrome would
-           // otherwise auto-upgrade or block that request, silently, with no console message.
-           "--allow-running-insecure-content", "--ignore-certificate-errors"],
+    headless: false, viewport: null, ignoreHTTPSErrors: true,
+    args: ["--window-position=0,25", "--window-size=1280,860", "--ignore-certificate-errors"],
 });
 const page = ctx.pages()[0] ?? await ctx.newPage();
-const logs = [];
-page.on("console", (m) => logs.push(`[${m.type()}] ${m.text().slice(0, 250)}`));
-page.on("pageerror", (e) => logs.push(`[pageerror] ${String(e).slice(0, 250)}`));
-page.on("request", (r) => { if (r.url().includes("8124")) logs.push(`[req] ${r.method()} ${r.url()}`); });
-// Requests made from workers do not surface on the page; watch the context too.
-ctx.on("request", (r) => { if (r.url().includes("8124")) logs.push(`[ctx-req] ${r.method()} ${r.url()}`); });
-page.on("requestfailed", (r) => logs.push(`[reqfail] ${r.url().slice(0, 120)} ${r.failure()?.errorText}`));
-page.on("response", (r) => { if (r.url().includes("8124")) logs.push(`[resp] ${r.status()} ${r.url()}`); });
+page.on("console", (m) => { if (m.type() !== "info") console.log(`  [${m.type()}] ${m.text().slice(0, 200)}`); });
+page.on("pageerror", (e) => console.log(`  [pageerror] ${String(e).slice(0, 200)}`));
 
 const fullText = () => page.evaluate(() => document.body.innerText);
-const onImportScreen = async () => (await fullText()).includes(IMPORT_SCREEN);
 
 await page.goto("https://game.chronodivide.com/", { waitUntil: "domcontentloaded" });
-await page.waitForTimeout(6000);
+await page.waitForTimeout(7000);
 
-if (await onImportScreen()) {
-    console.log("import screen present; filling URL");
+if ((await fullText()).includes(IMPORT_SCREEN)) {
     const input = page.locator('input[type="url"]');
-    await input.fill(url);
-    console.log("  input value now:", await input.inputValue());
-    const btn = page.locator("text=Download").first();
-    console.log("  Download button visible:", await btn.isVisible());
-    await btn.click();
-    console.log("  clicked Download");
-    for (let i = 0; i < 60; i++) {
-        await page.waitForTimeout(5000);
-        const t = (await fullText()).replace(/\s+/g, " ");
-        // Progress text replaces the import prompt; report the tail, which is where status appears.
-        console.log(`  t+${(i + 1) * 5}s: ${t.slice(-160)}`);
-        if (!t.includes(IMPORT_SCREEN)) { console.log("  >> import screen gone"); break; }
-    }
-} else console.log("assets already imported in this profile");
+    await input.click();
+    await page.keyboard.press("Meta+A");
+    await page.keyboard.press("Backspace");
+    await input.pressSequentially(url, { delay: 12 });   // real key events, so app state updates
+    console.log("typed URL, field now:", await input.inputValue());
+    await page.locator('button:has-text("Download")').click();
+    console.log("clicked Download");
 
-await page.waitForTimeout(8000);
+    // The import screen clears long before the download starts; "Preparing for import..." comes
+    // first, then the transfer, then extraction. Wait for the game itself (a canvas) to appear.
+    for (let i = 0; i < 120; i++) {
+        await page.waitForTimeout(10000);
+        const t = (await fullText()).replace(/\s+/g, " ");
+        const status = t.replace(/© 2000 ELECTRONIC.*/i, "").trim().slice(0, 120);
+        const hasCanvas = await page.evaluate(() => !!document.querySelector("canvas"));
+        console.log(`  t+${(i + 1) * 10}s canvas=${hasCanvas} :: ${status || "(no status text)"}`);
+        if (hasCanvas) { console.log("  >> game canvas present"); break; }
+    }
+} else console.log("assets already present in this profile");
+
+await page.waitForTimeout(5000);
 const info = await page.evaluate(() => ({
-    url: location.href,
-    text: document.body.innerText.slice(0, 1500),
-    buttons: [...document.querySelectorAll("button, a, [role=button]")].map((b) => (b.innerText || "").trim()).filter(Boolean).slice(0, 30),
-    inputs: [...document.querySelectorAll("input")].map((i) => ({ type: i.type, placeholder: i.placeholder, visible: !!(i.offsetWidth || i.offsetHeight) })),
+    text: document.body.innerText.slice(0, 900),
+    buttons: [...document.querySelectorAll("button,a,[role=button]")].map((b) => (b.innerText || "").trim()).filter(Boolean).slice(0, 25),
+    inputs: [...document.querySelectorAll("input")].map((i) => ({ type: i.type, placeholder: i.placeholder })),
     storage: Object.keys(localStorage),
+    canvas: !!document.querySelector("canvas"),
 }));
 console.log("=== screen now ==="); console.log(JSON.stringify(info, null, 2));
 await page.screenshot({ path: "out/after-import.png" });
-writeFileSync("out/import-console.txt", logs.join("\n"));
-console.log("=== browser log (asset requests + errors) ===");
-console.log(logs.filter((l) => /req|resp|error|fail|8124/i.test(l)).slice(0, 25).join("\n") || "(none)");
 await ctx.close();

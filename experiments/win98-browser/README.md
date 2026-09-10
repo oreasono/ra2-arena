@@ -48,6 +48,35 @@ Environment knobs: `N`, `COLS`, `SCREEN_W`/`SCREEN_H`, `HOLD_SECONDS`, `BOOT_TIM
 Outputs go to `out/` (ignored): per-slot screenshots, `samples.json` with CPU/RSS samples and boot
 statistics, and the chunk cache.
 
+## Getting Red Alert 2 into the guest
+
+Unsolved when the spike was written; the pieces are now identified but not yet assembled.
+
+The public Windows 98 image is read-only for anonymous users, so the game cannot simply be installed
+into it. Three findings make a different route viable:
+
+- **js-dos can inject arbitrary files** into the emulated filesystem before boot, via the player's
+  `initFs` option, which takes `{ path, contents }` entries.
+- **DOSBox-X can hand a folder mount to a booted guest.** `boot c: -convertfat` converts every folder
+  mount into an emulated FAT hard disk at boot time, which is exactly the case this feature was added
+  for. `-convertfatro` makes it read-only, so several instances can share one game disk with no write
+  conflicts. FAT16 is chosen when files plus 250 MiB stay under 2 GiB, FAT32 otherwise; Windows 98
+  handles both. You cannot boot from such a disk, which is fine: the OS still boots from the image.
+- **The emulator has an NE2000 network card compiled in** (`NE2000_Poller`, `ethernet_frame` appear in
+  the build's symbols). That matters because the guest's own IPX/SPX stack needs a NIC to bind to.
+  The IPX proven in the table above is the DOS-level driver, which is a different path from what a
+  Windows game uses.
+
+So the planned sequence is: inject the game files, mount them as a folder, boot the OS image with
+`-convertfat`, and let Windows see the game on a second drive. The game files are roughly 650 MB once
+cutscenes are dropped, which is the number to watch when several instances run at once.
+
+The sockdrive image format was also decoded along the way, in case serving our own disk becomes
+necessary: `sockdrive.metaj` is Brotli-compressed JSON describing a plain CHS disk (520 cylinders,
+128 heads, 63 sectors of 512 bytes for the 2 GB image) split into `range_count` chunks of
+`ahead_read` bytes. Chunk retrieval is not a simple index under that path, so serving a custom image
+would still need protocol work.
+
 ## Notes
 
 - The public Windows 98 image is provided by js-dos for read access; writes by anonymous users are

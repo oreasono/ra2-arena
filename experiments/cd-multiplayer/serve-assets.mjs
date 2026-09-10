@@ -1,14 +1,19 @@
-// Serve a local archive of RA2 assets to the game client, which imports from a URL.
-// CORS and range requests are both required. Nothing here ships assets: point ASSETS at your own file.
+// Serve a local archive of RA2 assets to the game client, which imports it from a URL.
+// The client is served over https, so this server speaks https too: a plain http URL produces no
+// request at all from the page, with no console message. Range requests and CORS are both required.
+// Nothing here ships assets -- point ASSETS at your own archive.
 import http from "node:http";
-import { createReadStream, statSync } from "node:fs";
+import https from "node:https";
+import { createReadStream, statSync, readFileSync } from "node:fs";
 
 const file = process.env.ASSETS;
-const port = Number(process.env.PORT ?? 8124);
+const port = Number(process.env.PORT ?? 8125);
+const cert = process.env.CERT, key = process.env.KEY;
 if (!file) { console.error("set ASSETS=/path/to/ra2-assets.zip"); process.exit(1); }
 const size = statSync(file).size;
+let hits = 0;
 
-http.createServer((req, res) => {
+const handler = (req, res) => {
     const cors = {
         "access-control-allow-origin": "*",
         "access-control-allow-headers": "range,content-type",
@@ -16,6 +21,7 @@ http.createServer((req, res) => {
         "accept-ranges": "bytes",
         "content-type": "application/zip",
     };
+    console.log(`[${++hits}] ${req.method} ${req.url} range=${req.headers.range ?? "-"} origin=${req.headers.origin ?? "-"}`);
     if (req.method === "OPTIONS") { res.writeHead(204, cors); res.end(); return; }
     const m = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range ?? "");
     if (m) {
@@ -27,4 +33,11 @@ http.createServer((req, res) => {
     }
     res.writeHead(200, { ...cors, "content-length": size });
     if (req.method !== "HEAD") createReadStream(file).pipe(res); else res.end();
-}).listen(port, "127.0.0.1", () => console.log(`serving ${file} (${(size / 1048576).toFixed(0)} MB) on http://127.0.0.1:${port}/ra2-assets.zip`));
+};
+
+const server = cert && key
+    ? https.createServer({ cert: readFileSync(cert), key: readFileSync(key) }, handler)
+    : http.createServer(handler);
+server.on("clientError", (e, sock) => { console.log("clientError:", e.code ?? e.message); sock.destroy(); });
+server.listen(port, "127.0.0.1", () =>
+    console.log(`serving ${file} (${(size / 1048576).toFixed(0)} MB) on ${cert ? "https" : "http"}://127.0.0.1:${port}/ra2-assets.zip`));
