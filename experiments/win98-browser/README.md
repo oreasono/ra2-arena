@@ -48,12 +48,46 @@ Environment knobs: `N`, `COLS`, `SCREEN_W`/`SCREEN_H`, `HOLD_SECONDS`, `BOOT_TIM
 Outputs go to `out/` (ignored): per-slot screenshots, `samples.json` with CPU/RSS samples and boot
 statistics, and the chunk cache.
 
-## Getting Red Alert 2 into the guest
+## Getting files into the guest — works
 
-Unsolved when the spike was written; the pieces are now identified but not yet assembled.
+Proven end to end on 2026-09-11: files injected from the host appear inside Windows 98 as a
+read-only drive. `check-drive.mjs` boots the guest, opens My Computer and opens that drive; the
+screenshots it writes to `out/` show the injected folder and file on `D:`, alongside the OS image
+on `C:`.
 
-The public Windows 98 image is read-only for anonymous users, so the game cannot simply be installed
-into it. Three findings make a different route viable:
+The chain is:
+
+1. `initFs` puts `{ path, contents }` entries into the emulated filesystem before boot. The page
+   loads them from a JSON payload of base64 blobs, so what gets injected is a runtime choice rather
+   than something baked into a bundle.
+2. The DOSBox-X autoexec mounts that as a folder (`mount d .`) and mounts the OS image over
+   sockdrive.
+3. `boot c: -convertfatro` converts every folder mount into an emulated FAT hard disk as the guest
+   boots, read-only, so several instances can share one game disk without fighting over writes.
+
+Two notes for whoever repeats this:
+
+- **Guest interaction goes through the emulator, not the page.** `ci.sendMouseMotion` takes
+  coordinates normalised to the emulated screen, so they survive whatever scaling the browser
+  applies to the canvas. Double-click was unreliable for opening desktop icons; selecting the icon
+  and pressing Enter worked every time.
+- **A still frame counter does not mean the guest is stuck.** An idle Windows desktop renders almost
+  nothing, and reading a stalled counter as a hang sent this spike down a wrong path once.
+
+Still open: injecting the real game (roughly 650 MB once cutscenes are dropped, versus 56 bytes for
+the probe), and whether the guest's own IPX/SPX stack can talk between instances. The emulator does
+have an NE2000 card compiled in (`NE2000_Poller`, `ethernet_frame` appear in the build's symbols),
+which is the hardware that stack needs; the IPX proven in the table above is the DOS-level driver,
+a different path from what a Windows game uses.
+
+The sockdrive image format was also decoded, in case serving our own disk becomes necessary:
+`sockdrive.metaj` is Brotli-compressed JSON describing a plain CHS disk (520 cylinders, 128 heads,
+63 sectors of 512 bytes for the 2 GB image) split into `range_count` chunks of `ahead_read` bytes.
+Chunk retrieval is not a simple index under that path, so a custom image would still need protocol
+work. The route above avoids needing it.
+
+The public Windows 98 image is read-only for anonymous users, so the game cannot be installed into
+it directly, which is what sent this route through injection instead. The findings behind it:
 
 - **js-dos can inject arbitrary files** into the emulated filesystem before boot, via the player's
   `initFs` option, which takes `{ path, contents }` entries.
@@ -67,15 +101,7 @@ into it. Three findings make a different route viable:
   The IPX proven in the table above is the DOS-level driver, which is a different path from what a
   Windows game uses.
 
-So the planned sequence is: inject the game files, mount them as a folder, boot the OS image with
-`-convertfat`, and let Windows see the game on a second drive. The game files are roughly 650 MB once
-cutscenes are dropped, which is the number to watch when several instances run at once.
 
-The sockdrive image format was also decoded along the way, in case serving our own disk becomes
-necessary: `sockdrive.metaj` is Brotli-compressed JSON describing a plain CHS disk (520 cylinders,
-128 heads, 63 sectors of 512 bytes for the 2 GB image) split into `range_count` chunks of
-`ahead_read` bytes. Chunk retrieval is not a simple index under that path, so serving a custom image
-would still need protocol work.
 
 ## Notes
 

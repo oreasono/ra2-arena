@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>win98 + game disk</title>
+<style>html, body { height: 100%; margin: 0; background: #000; } #dos { width: 100%; height: 100%; }</style>
+<link rel="stylesheet" href="https://v8.js-dos.com/latest/js-dos.css">
+<script src="https://v8.js-dos.com/latest/js-dos.js"></script>
+</head>
+<body>
+<div id="dos"></div>
+<script>
+(function () {
+// Boot the public Windows 98 image and hand the booted OS a second drive built from injected files.
+//
+// The mechanism: js-dos `initFs` puts files into the emulated filesystem before boot, and DOSBox-X's
+// `boot c: -convertfat` converts every folder mount into an emulated FAT hard disk at boot time, so
+// the guest sees them. `-convertfatro` makes that disk read-only, which is what several instances
+// sharing one game disk want.
+//
+// Query parameters: slot=N, sock=<backend>, owner=<owner>, c=<drive>, ro=1, payload=<url of a json
+// array of {path, b64}>, server=1 / connect=<peer> for IPX.
+const q = new URLSearchParams(location.search);
+const slot = q.get("slot") ?? "0";
+document.title = `slot ${slot}`;
+const owner = q.get("owner") ?? "system";
+const c = q.get("c") ?? "win98-v1";
+const sock = q.get("sock") ?? (location.origin + "/sd");
+const readOnly = q.get("ro") === "1";
+const official = sock.startsWith("wss://sockdrive.js-dos.com");
+const mount = (n, drive) => official ? `imgmount ${n} sockdrive ${sock} ${owner} ${drive}`
+                                     : `imgmount ${n} sockdrive ${sock}/${owner}/${drive}`;
+
+window.state = { slot, ready: false, peerId: null, frames: 0, startedAt: Date.now(), readyAt: null,
+                 exitedAt: null, stdout: [], injected: 0, injectedBytes: 0 };
+window.ci = null;
+
+async function loadPayload() {
+    const src = q.get("payload");
+    if (!src) return [];
+    const list = await (await fetch(src)).json();
+    return list.map(({ path, b64 }) => {
+        const bin = atob(b64);
+        const buf = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+        window.state.injected++; window.state.injectedBytes += buf.length;
+        return { path, contents: buf };
+    });
+}
+
+loadPayload().then((initFs) => {
+    const conf = `
+[sdl]
+autolock=false
+mouse_emulation=integration
+[dosbox]
+title=Windows 9x
+memsize=128
+[video]
+vmemsize=8
+vesa modelist width limit=0
+vesa modelist height limit=0
+[dos]
+ver=7.1
+hard drive data rate limit=0
+floppy drive data rate limit=0
+[cpu]
+cputype=pentium_mmx
+core=auto
+integration device=true
+[sblaster]
+sbtype=sb16vibra
+[fdc, primary]
+int13fakev86io=true
+[ide, primary]
+int13fakeio=true
+int13fakev86io=true
+[ide, secondary]
+int13fakeio=true
+int13fakev86io=true
+cd-rom insertion delay=4000
+[render]
+scaler=none
+[autoexec]
+echo off
+mount d .
+dir d:\\ /w
+${mount(2, c)}
+boot c: ${readOnly ? "-convertfatro" : "-convertfat"}
+`;
+
+    const props = Dos(document.getElementById("dos"), {
+        dosboxConf: conf,
+        initFs,
+        pathPrefix: "https://v8.js-dos.com/latest/emulators/",
+        backend: "dosboxX",
+        backendLocked: true,
+        workerThread: true,
+        autoStart: true,
+        kiosk: true,
+        mouseCapture: false,
+        startIpxServer: q.get("server") === "1",
+        connectIpxAddress: q.get("connect") ?? undefined,
+        onEvent: (event, ci) => {
+            console.log("js-dos event", event);
+            if (event === "ci-ready") {
+                window.ci = ci;
+                window.state.ready = true;
+                window.state.readyAt = Date.now();
+                try { const net = ci.net(); window.state.peerId = net ? String(net.peerId) : null; } catch (e) { window.state.netError = String(e); }
+                try { ci.events().onFrame(() => { window.state.frames++; }); } catch {}
+                try { ci.events().onStdout((m) => { const s = window.state.stdout; s.push(String(m)); if (s.length > 800) s.shift(); }); } catch {}
+                try { ci.events().onExit(() => { window.state.exitedAt = Date.now(); }); } catch {}
+            }
+        },
+    });
+    try { props.setNoCloud(true); } catch {}
+});
+
+// Drive the guest through the emulator itself rather than the page: coordinates are normalised to
+// the emulated screen, so they do not depend on how the canvas is scaled in the browser window.
+window.clickAt = async (nx, ny, times = 1) => {
+    window.ci.sendMouseMotion(nx, ny);
+    window.ci.sendMouseSync();
+    await new Promise((r) => setTimeout(r, 250));
+    for (let i = 0; i < times; i++) {
+        window.ci.sendMouseButton(0, true);
+        await new Promise((r) => setTimeout(r, 40));
+        window.ci.sendMouseButton(0, false);
+        await new Promise((r) => setTimeout(r, times > 1 ? 90 : 40));
+    }
+    return true;
+};
+window.fsTree = async () => JSON.stringify(await window.ci.fsTree()).slice(0, 4000);
+
+window.screenshotPNG = async () => {
+    const img = await window.ci.screenshot();
+    const canvas = document.createElement("canvas");
+    canvas.width = img.width; canvas.height = img.height;
+    canvas.getContext("2d").putImageData(img, 0, 0);
+    return canvas.toDataURL("image/png");
+};
+window.stdoutText = () => (window.state.stdout ?? []).join("\n").replace(/\u001b\[[0-9;]*m/g, "");
+})();
+</script>
+</body>
+</html>
