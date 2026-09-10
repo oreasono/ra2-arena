@@ -57,7 +57,7 @@ docs/              research, decisions, tournament rules
 
 | Milestone | Scope | Done when |
 |---|---|---|
-| M0 | Engine bring-up | **done:** engine initialises from our own game files, 273 maps, headless match loop writes a `.rpl` (`tools/engine-smoke.mjs`). **left:** a full scripted-bot match with a winner; Playwright imports assets, logs in and creates a private lobby; Windows 98 track validated or dropped (checklist below) |
+| M0 | Engine bring-up | **done:** engine initialises from our own game files (273 maps); scripted bots play full matches to a winner, 2 to 8 players in one process (`tools/scripted-match.mjs`). **left:** a browser client driven end to end into a private lobby; Windows 98 track validated or dropped (checklist below) |
 | M1 | Mode A, one model | One model vs the built-in scripted bot, full match, decision log, replay, cost report |
 | M2 | Mode A, model vs model | Runner plays a round robin; Bradley-Terry/Elo table; premiere overlay works |
 | M3 | Mode B | Two models in two Chrome instances finish a match; live overlay; first stream |
@@ -70,6 +70,32 @@ Windows 98 track checklist (M0, two days max):
 3. QMP `screendump` and `input-send-event` drive one screenshot -> model -> click cycle.
 4. Both VMs `stop` for 30 s, then `cont`; RA2 must not drop the connection. If this holds, the track can also run turn-based.
 5. Measured CPU/RAM per VM, giving games per host.
+
+## Running a match
+
+With `MIX_DIR` in place, scripted bots play each other headless. This is the multiplayer substrate:
+2 to 8 players in one process, no LLM involved. Model-driven agents replace the scripted ones later.
+
+```
+MIX_DIR=~/ra2-mix node tools/scripted-match.mjs
+MAP=mp03t4.map PLAYERS=4 MIX_DIR=~/ra2-mix node tools/scripted-match.mjs
+```
+
+Each run prints a five-minute progress line, the final standings and a `.rpl` replay path. The
+replay imports into the real game client.
+
+Measured on an Apple M4:
+
+| Match | Result | Wall clock | Speed |
+|---|---|---|---|
+| 1v1, mp06t2 | winner after 29 in-game minutes | 2.7 s | 649x real time |
+| 4-player FFA, mp03t4 | two bots left, no winner at the 66-minute cap | 14.3 s | 280x real time |
+
+The second line is the important one. Scripted bots already stalemate, so the tournament rules need
+a draw verdict and a tie-break on economy and army value rather than assuming every match resolves.
+
+Install note: the published bot declares a peer dependency on an older engine API, so `npm install`
+needs `--legacy-peer-deps`. The combination above was tested and plays through.
 
 ## Open questions
 

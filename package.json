@@ -8,8 +8,11 @@
     "mix-dir": "tools/make-mix-dir.sh",
     "smoke": "node tools/engine-smoke.mjs"
   },
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
-    "@chronodivide/game-api": "0.79.0"
+    "@chronodivide/game-api": "0.79.0",
+    "@supalosa/chronodivide-bot": "^0.6.8-beta.1"
   }
 }

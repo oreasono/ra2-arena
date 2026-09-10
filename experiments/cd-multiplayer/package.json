@@ -1,0 +1,8 @@
+{
+  "name": "cd-multiplayer-spike",
+  "private": true,
+  "type": "module",
+  "version": "0.0.1",
+  "description": "Drive N Chrono Divide clients on one machine into a single match",
+  "devDependencies": { "playwright": "^1.50.0" }
+}
