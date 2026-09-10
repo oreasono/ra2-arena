@@ -65,7 +65,7 @@ const gameFiles = () => {
     return readdirSync(dir).filter((n) => !SKIP.test(n) && statSync(join(dir, n)).isFile());
 };
 // Generated, not read from disk: see the /game/install.reg handler.
-const GENERATED = [{ name: "install.reg", size: 220 }];
+const GENERATED = [{ name: "install.reg", size: 220 }, { name: "run.bat", size: 40 }, { name: "runmd.bat", size: 42 }];
 
 http.createServer(async (req, res) => {
     const path = normalize(decodeURIComponent(new URL(req.url, "http://x").pathname));
@@ -94,6 +94,16 @@ http.createServer(async (req, res) => {
         out.push(...GENERATED);
         res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
         res.end(JSON.stringify(out));
+        return;
+    }
+    if (path === "/game/run.bat" || path === "/game/runmd.bat") {
+        // The game loads its bootstrap archives relative to the working directory, and launching by
+        // full path from the Run dialog does not set that to the game's own folder. Its own error
+        // strings include "Failed to initialize bootstrap mixfiles!", which is what that looks like.
+        const exe = path.endsWith("runmd.bat") ? "gamemd.exe" : "game.exe";
+        const bat = ["@echo off", "D:", "cd \\RA2", exe, ""].join("\r\n");
+        res.writeHead(200, { "content-type": "application/octet-stream", "cache-control": "no-store" });
+        res.end(bat);
         return;
     }
     if (path === "/game/install.reg") {

@@ -95,9 +95,22 @@ Five explanations were tested and none of them is the cause:
 | Hand-picked file subset was incomplete | Injected all 125 shipped files instead of 20 | Still fails |
 | Binary too new for this Windows | Read the PE header: requires OS 4.0, subsystem 4.0 | Compatible; eliminated |
 
-Top remaining candidate: the working directory. The game loads its archives relative to wherever it
-was started from, and launching by full path from the Run dialog does not necessarily set that to
-the game's own folder. The next test is a batch file that changes drive and directory first.
+Since then two more were ruled out:
+
+| Hypothesis | Test | Result |
+|---|---|---|
+| Wrong working directory | Injected a batch file that changes drive and directory first | Still fails |
+| Missing archives the binary names | Searched all three depots: no separate audio archive exists, and the language depot is fully covered | Not the cause |
+
+The binary's own strings show the dialog stands for several distinct internal failures, among them
+rules, CD-ROM access, bootstrap archives and the string table. Which one fires is still unknown, and
+guessing has now cost six rounds. The next attempt should read it out of the guest rather than infer
+it: `ci.persist()` returns the emulated filesystem's changes to the host, which would expose whatever
+the game writes when it gives up.
+
+One trap to avoid when scripting that: driving the guest's Start menu without checking it opened
+sends the following keystrokes to the desktop, where single letters select icons. A diagnostic run
+ended up opening the Recycle Bin this way. Verify the menu is open before typing into it.
 
 Two things worth knowing before repeating any of this:
 
