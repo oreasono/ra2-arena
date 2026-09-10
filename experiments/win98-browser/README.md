@@ -121,6 +121,23 @@ guessing has now cost six rounds. The next attempt should read it out of the gue
 it: `ci.persist()` returns the emulated filesystem's changes to the host, which would expose whatever
 the game writes when it gives up.
 
+A fifth round measured the disk rather than guessing about it:
+
+| Hypothesis | Test | Result |
+|---|---|---|
+| The converted disk cannot serve the large archives | Copied a 195 MB archive to the null device inside the guest | Reads back whole, so not a correctness problem, but it takes 75 s: about **2.6 MB/s** |
+
+A small file copies instantly, so the cost is proportional to size rather than a fixed overhead.
+The measurement carries some DOS-box overhead of its own, but it is the rate the game would see for
+its own archives, which come to 463 MB between them. That is worth knowing independently of the
+initialisation failure: even with the game starting, an emulated disk at this rate is a poor
+foundation for four instances playing at once.
+
+Nine explanations have now been tested and eliminated. The failure is inside the game's own
+initialisation, and the dialog covers several distinct internal causes. Remaining untested:
+the guest's DirectX version, and whether the game insists on a CD-ROM being present (both appear in
+the binary's error strings).
+
 Two traps when scripting the guest. Driving the Start menu without checking it opened sends the
 following keystrokes to the desktop, where single letters select icons; a diagnostic run opened the
 Recycle Bin that way, so the helper now compares the screen before and after clicking and retries.
