@@ -6,7 +6,8 @@ livestream content. It is a content project, not a hosted service.
 
 ## Status
 
-Day 0 (2026-09-09). Feasibility study done, framework set, no code yet.
+Started 2026-09-09. Feasibility study done, framework set. The headless engine runs on our own
+game files, and a spike shows several Windows 98 instances driven side by side in one browser.
 Read [docs/research/2026-09-09-feasibility.md](docs/research/2026-09-09-feasibility.md) first.
 
 ## Decisions so far
@@ -56,7 +57,7 @@ docs/              research, decisions, tournament rules
 
 | Milestone | Scope | Done when |
 |---|---|---|
-| M0 | Engine bring-up | game-api plays a full scripted-bot match with our MIX files and writes a `.rpl`; Playwright imports assets, logs in and creates a private lobby; Windows 98 track validated or dropped (checklist below) |
+| M0 | Engine bring-up | **done:** engine initialises from our own game files, 273 maps, headless match loop writes a `.rpl` (`tools/engine-smoke.mjs`). **left:** a full scripted-bot match with a winner; Playwright imports assets, logs in and creates a private lobby; Windows 98 track validated or dropped (checklist below) |
 | M1 | Mode A, one model | One model vs the built-in scripted bot, full match, decision log, replay, cost report |
 | M2 | Mode A, model vs model | Runner plays a round robin; Bradley-Terry/Elo table; premiere overlay works |
 | M3 | Mode B | Two models in two Chrome instances finish a match; live overlay; first stream |
@@ -79,9 +80,46 @@ Windows 98 track checklist (M0, two days max):
 - Whether to publish a read-only results page.
 - License for this repository.
 
+## Game files
+
+You need a retail copy of Red Alert 2; nothing here ships game assets. On Steam the game is app
+2229850, and its Windows depots can be downloaded on macOS or Linux too, from the client console
+(`steam://open/console`, or launch Steam with `-console`):
+
+```
+download_depot 2229850 2229851 4928885831751969588
+download_depot 2229850 2229852 2191822715159570153
+```
+
+The first is the base game (~1.9 GB), the second English (~1.2 GB). Other language depots: 2229853
+German, 2229854 French, 2229855 Traditional Chinese, 2229856 Korean. There is no Simplified Chinese
+depot, and the Traditional Chinese pack is subtitles only, so the voice-over stays English.
+
+Then assemble a `MIX_DIR` and check that the engine can actually read it:
+
+```
+tools/make-mix-dir.sh
+MIX_DIR=~/ra2-mix node tools/engine-smoke.mjs
+```
+
+Three things that cost time the first time round:
+
+- **The engine rejects symlinks.** A `MIX_DIR` of symlinks fails with
+  `IOError: File "language.mix" could not be read (TypeMismatchError)`. Use hard links, which cost
+  no extra space but need the same filesystem.
+- **On macOS the Steam client writes depots under its own app bundle**, not the Steam library
+  (`.../Steam.AppBundle/Steam/Contents/MacOS/steamapps/content/app_2229850`), and the path it
+  prints mixes forward and back slashes. The directories on disk use forward slashes.
+- **Verify by running the engine, not by checksumming.** Files can hash fine and still be in a
+  layout the engine will not open.
+
+Measured on an Apple M4 with the base depot plus English: 273 maps, and a 3000-tick match with idle
+agents simulates at roughly 35k ticks per second. That figure is an upper bound with no orders and
+no combat; a real bot with pathfinding is far slower.
+
 ## Requirements
 
-- A retail copy of Red Alert 2 (for example Steam app 2229850) for the `*.mix` files.
+- A retail copy of Red Alert 2 (see above) for the `*.mix` files.
 - Node.js 20 or newer for the headless engine; Chrome for Mode B.
 - One Linux box with 8-16 cores for parallel matches; a streaming machine with OBS.
 - Chrono Divide player accounts for Mode B.

@@ -1,0 +1,15 @@
+{
+  "name": "ra2-arena",
+  "private": true,
+  "type": "module",
+  "version": "0.0.1",
+  "description": "LLMs playing Command & Conquer: Red Alert 2 against each other",
+  "scripts": {
+    "mix-dir": "tools/make-mix-dir.sh",
+    "smoke": "node tools/engine-smoke.mjs"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "@chronodivide/game-api": "0.79.0"
+  }
+}
