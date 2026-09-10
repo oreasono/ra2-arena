@@ -102,15 +102,31 @@ Since then two more were ruled out:
 | Wrong working directory | Injected a batch file that changes drive and directory first | Still fails |
 | Missing archives the binary names | Searched all three depots: no separate audio archive exists, and the language depot is fully covered | Not the cause |
 
+A fourth round added two more, and corrected one:
+
+| Hypothesis | Test | Result |
+|---|---|---|
+| The release is DRM-wrapped and needs a store client | Read the PE sections: the two launchers carry a wrapper section, the game binaries do not | Explains why the launcher dies with a store error; the game binary itself is clean |
+| Missing installer registry keys (retested) | The earlier test never ran. Paths reached the guest with doubled separators and the import failed with a file-open error, while the run looked like it had succeeded. Retried with the confirmation visible: the guest reported the keys were entered | Properly eliminated this time |
+
+**The escaping bug is worth stating plainly**, because it invalidated work that looked done: guest
+commands were assembled as escaped string literals, went through several layers of quoting, and
+arrived with every separator doubled. Build such paths at runtime instead, e.g. from
+`String.fromCharCode(92)`, so no layer of quoting can touch them. And confirm each guest step
+reports success rather than assuming a silent switch worked.
+
 The binary's own strings show the dialog stands for several distinct internal failures, among them
 rules, CD-ROM access, bootstrap archives and the string table. Which one fires is still unknown, and
 guessing has now cost six rounds. The next attempt should read it out of the guest rather than infer
 it: `ci.persist()` returns the emulated filesystem's changes to the host, which would expose whatever
 the game writes when it gives up.
 
-One trap to avoid when scripting that: driving the guest's Start menu without checking it opened
-sends the following keystrokes to the desktop, where single letters select icons. A diagnostic run
-ended up opening the Recycle Bin this way. Verify the menu is open before typing into it.
+Two traps when scripting the guest. Driving the Start menu without checking it opened sends the
+following keystrokes to the desktop, where single letters select icons; a diagnostic run opened the
+Recycle Bin that way, so the helper now compares the screen before and after clicking and retries.
+And the game archives are large enough that the converted disk serving them correctly is itself
+worth testing, which is the next hypothesis: read one of the big archives end to end inside the
+guest and see whether it comes back whole.
 
 Two things worth knowing before repeating any of this:
 
