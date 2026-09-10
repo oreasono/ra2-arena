@@ -133,10 +133,21 @@ its own archives, which come to 463 MB between them. That is worth knowing indep
 initialisation failure: even with the game starting, an emulated disk at this rate is a poor
 foundation for four instances playing at once.
 
-Nine explanations have now been tested and eliminated. The failure is inside the game's own
-initialisation, and the dialog covers several distinct internal causes. Remaining untested:
-the guest's DirectX version, and whether the game insists on a CD-ROM being present (both appear in
-the binary's error strings).
+A sixth round narrowed it considerably by starting the base game rather than the expansion:
+
+| Observation | What it rules out |
+|---|---|
+| The base game renders its full splash screen, then fails during loading | Display initialisation works, and the archives are readable: that artwork comes out of them |
+| A file written into the game directory from inside the guest reads back and appears in a listing | The disk is genuinely writable, so a game unable to save settings is not the cause |
+| The directory holds no report or log file after the failure | The game gives up before it writes anything |
+
+That leaves the CD-ROM check as the strongest remaining candidate: the binary enumerates drives,
+carries a "No CD drives found" message, and the guest's optical drive is empty. Confirming it means
+guessing at what the game expects on that disc, which is why it has not been attempted yet.
+
+Eleven explanations have now been tested and eliminated. The failure is inside the game's own
+initialisation, and the dialog covers several distinct internal causes. Remaining untested: whether the game
+insists on a CD-ROM being present.
 
 Two traps when scripting the guest. Driving the Start menu without checking it opened sends the
 following keystrokes to the desktop, where single letters select icons; a diagnostic run opened the
