@@ -32,20 +32,36 @@ const mount = (n, drive) => official ? `imgmount ${n} sockdrive ${sock} ${owner}
                                      : `imgmount ${n} sockdrive ${sock}/${owner}/${drive}`;
 
 window.state = { slot, ready: false, peerId: null, frames: 0, startedAt: Date.now(), readyAt: null,
-                 exitedAt: null, stdout: [], injected: 0, injectedBytes: 0 };
+                 exitedAt: null, stdout: [], injected: 0, injectedBytes: 0, toInject: 0, toInjectBytes: 0 };
 window.ci = null;
 
 async function loadPayload() {
+    // Small probe payloads come as base64 in one JSON file; the real game comes as raw binaries
+    // listed in a manifest, since base64 would add a third to several hundred megabytes.
     const src = q.get("payload");
-    if (!src) return [];
-    const list = await (await fetch(src)).json();
-    return list.map(({ path, b64 }) => {
-        const bin = atob(b64);
-        const buf = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+    if (src) {
+        const list = await (await fetch(src)).json();
+        return list.map(({ path, b64 }) => {
+            const bin = atob(b64);
+            const buf = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+            window.state.injected++; window.state.injectedBytes += buf.length;
+            return { path, contents: buf };
+        });
+    }
+    const manifest = q.get("manifest");
+    if (!manifest) return [];
+    const dir = q.get("gamedir") ?? "Ra2";
+    const files = await (await fetch(manifest)).json();
+    window.state.toInject = files.length;
+    window.state.toInjectBytes = files.reduce((a, f) => a + f.size, 0);
+    const out = [];
+    for (const f of files) {
+        const buf = new Uint8Array(await (await fetch(`/game/${f.name}`)).arrayBuffer());
+        out.push({ path: `${dir}/${f.name}`, contents: buf });
         window.state.injected++; window.state.injectedBytes += buf.length;
-        return { path, contents: buf };
-    });
+    }
+    return out;
 }
 
 loadPayload().then((initFs) => {
@@ -85,6 +101,7 @@ scaler=none
 echo off
 mount d .
 dir d:\\ /w
+dir d:\\ra2
 ${mount(2, c)}
 boot c: ${readOnly ? "-convertfatro" : "-convertfat"}
 `;

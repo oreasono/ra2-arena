@@ -74,7 +74,39 @@ Two notes for whoever repeats this:
 - **A still frame counter does not mean the guest is stuck.** An idle Windows desktop renders almost
   nothing, and reading a stalled counter as a hang sent this spike down a wrong path once.
 
-Still open: injecting the real game (roughly 650 MB once cutscenes are dropped, versus 56 bytes for
+## Running the game — launches, does not initialise
+
+The full game reaches the guest: 125 files, 808 MB, listed by the emulator itself under `D:\RA2`
+with long filenames intact and 2 GB free on the converted disk. `launch-game.mjs` boots the guest
+with a writable copy, imports registry keys, registers the game's Blowfish component and starts the
+executable through Start > Run.
+
+The executable runs. It takes over the display at 800x600 and puts up its own dialog: *Failed to
+initialize. Please reinstall.* So the binary loads and gets far enough to report an error of its
+own, which is a different and much better failure than not starting.
+
+Five explanations were tested and none of them is the cause:
+
+| Hypothesis | Test | Result |
+|---|---|---|
+| Blowfish component not registered | `regsvr32` in the guest | Succeeded, game still fails |
+| Missing installer registry keys | Injected and imported a `.reg` with both install paths | Still fails |
+| Shipped DirectDraw shim shadows the system one | Excluded it from the payload | Still fails |
+| Hand-picked file subset was incomplete | Injected all 125 shipped files instead of 20 | Still fails |
+| Binary too new for this Windows | Read the PE header: requires OS 4.0, subsystem 4.0 | Compatible; eliminated |
+
+Top remaining candidate: the working directory. The game loads its archives relative to wherever it
+was started from, and launching by full path from the Run dialog does not necessarily set that to
+the game's own folder. The next test is a batch file that changes drive and directory first.
+
+Two things worth knowing before repeating any of this:
+
+- **Shift does not cross into the guest.** A typed `:` arrives as `;`, which turned a path into
+  `d;\ra2\gamemd.exe`. Send shifted characters as explicit down/up pairs.
+- **Ctrl+Esc never reaches the guest** either; the browser keeps it. Click the Start button using
+  emulator-normalised coordinates instead. Plain letters do get through.
+
+Still open: the initialisation failure above (roughly 650 MB once cutscenes are dropped, versus 56 bytes for
 the probe), and whether the guest's own IPX/SPX stack can talk between instances. The emulator does
 have an NE2000 card compiled in (`NE2000_Poller`, `ethernet_frame` appear in the build's symbols),
 which is the hardware that stack needs; the IPX proven in the table above is the DOS-level driver,

@@ -5,6 +5,7 @@
 // under it, so pointing the backend at "/sd" on this server keeps everything same-origin.
 import http from "node:http";
 import { readFile } from "node:fs/promises";
+import { createReadStream, statSync, readdirSync } from "node:fs";
 import { extname, join, normalize } from "node:path";
 import { Readable } from "node:stream";
 import { createHash } from "node:crypto";
@@ -54,9 +55,73 @@ async function proxy(req, res, path) {
     body.pipe(res);
 }
 
+// Everything the game shipped with, minus the cutscene archives (~1 GB and not needed to play).
+// Hand-picking a subset looked reasonable and cost several debugging rounds: the release also
+// ships map packs, a type library and an IPX emulation component, and the game will not start
+// without them.
+const SKIP = /^(movies0[12]\.mix|movmd03\.mix)$/i;
+const gameFiles = () => {
+    const dir = process.env.GAME_DIR;
+    return readdirSync(dir).filter((n) => !SKIP.test(n) && statSync(join(dir, n)).isFile());
+};
+// Generated, not read from disk: see the /game/install.reg handler.
+const GENERATED = [{ name: "install.reg", size: 220 }];
+
 http.createServer(async (req, res) => {
     const path = normalize(decodeURIComponent(new URL(req.url, "http://x").pathname));
     if (path.startsWith("/sd/")) return proxy(req, res, path);
+    if (path === "/game-manifest.json") {
+        const dir = process.env.GAME_DIR;
+        // ?maxmb=N caps the manifest, smallest files first, for bisecting how much the guest's
+        // filesystem will actually accept.
+        const cap = Number(new URL(req.url, "http://x").searchParams.get("maxmb") ?? 0) * 1048576;
+        // ?exclude=a,b drops files. The shipped ddraw.dll is a compatibility shim for modern
+        // Windows and shadows the one Windows 98 already has.
+        const drop = new Set((new URL(req.url, "http://x").searchParams.get("exclude") ?? "").split(",").filter(Boolean));
+        let all = [];
+        for (const name of gameFiles()) {
+            if (drop.has(name)) continue;
+            try { all.push({ name, size: statSync(join(dir, name)).size }); } catch {}
+        }
+        const out = [];
+        if (cap > 0) {
+            let total = 0;
+            for (const f of all.sort((a, b) => a.size - b.size)) {
+                if (total + f.size > cap) break;
+                out.push(f); total += f.size;
+            }
+        } else out.push(...all);
+        out.push(...GENERATED);
+        res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
+        res.end(JSON.stringify(out));
+        return;
+    }
+    if (path === "/game/install.reg") {
+        // Injecting files skips the installer, so the keys it would have written are missing and the
+        // game refuses to initialise. Point them at wherever the disk ends up inside the guest.
+        const drive = new URL(req.url, "http://x").searchParams.get("drive") ?? "D";
+        const dir = new URL(req.url, "http://x").searchParams.get("dir") ?? "RA2";
+        const base = `${drive}:\\\\${dir}`;
+        const reg = ["REGEDIT4", "",
+            "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Westwood\\Red Alert 2]",
+            `"InstallPath"="${base}\\\\game.exe"`, "",
+            "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Westwood\\Yuri's Revenge]",
+            `"InstallPath"="${base}\\\\gamemd.exe"`, ""].join("\r\n");
+        res.writeHead(200, { "content-type": "application/octet-stream", "cache-control": "no-store" });
+        res.end(reg);
+        return;
+    }
+    if (path.startsWith("/game/")) {
+        const name = path.slice("/game/".length);
+        if (!gameFiles().includes(name)) { res.writeHead(404); res.end("not in manifest"); return; }
+        try {
+            const full = join(process.env.GAME_DIR, name);
+            const st = statSync(full);
+            res.writeHead(200, { "content-type": "application/octet-stream", "content-length": st.size, "cache-control": "no-store" });
+            createReadStream(full).pipe(res);
+        } catch { res.writeHead(404); res.end("missing"); }
+        return;
+    }
     if (path === "/favicon.ico") { res.writeHead(204); res.end(); return; }
     if (path === "/stats") { res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify({ proxied, cacheHits, proxiedMB: Math.round(proxiedBytes / 1048576) })); return; }
     const file = join(root, path === "/" ? "index.html" : path);
