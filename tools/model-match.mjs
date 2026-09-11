@@ -33,22 +33,29 @@ const logDir = process.env.LOG_DIR ?? "./data/logs";
 if (!process.env.MIX_DIR) { console.error("set MIX_DIR (see tools/make-mix-dir.sh)"); process.exit(1); }
 mkdirSync(logDir, { recursive: true });
 
+// OPPONENT=model puts a second model-driven player on the other side, which is the arrangement the
+// project is actually for: one agent per player.
+const opponent = process.env.OPPONENT ?? "scripted";
 const client = new ModelClient();
 const transcript = [];
 const log = (m) => { console.log(`  ${m}`); transcript.push({ at: Date.now(), text: m }); };
 
 await cdapi.init(process.env.MIX_DIR);
 const limitMinutes = Math.round(maxTicks / 15 / 60);
-const modelBot = new ModelBot("Model", Countries.USA, { client, cadence, maxCalls, limitMinutes, log });
+const modelBot = new ModelBot("ModelA", Countries.USA, { client, cadence, maxCalls, limitMinutes, log });
+const secondBot = opponent === "model"
+    ? new ModelBot("ModelB", Countries.RUSSIA, { client: new ModelClient(), cadence, maxCalls, limitMinutes, log })
+    : new SupalosaBot("Scripted", Countries.RUSSIA, [], false);
+const thinkers = [modelBot, ...(opponent === "model" ? [secondBot] : [])];
 const game = await cdapi.createGame({
     online: false,
-    agents: [modelBot, new SupalosaBot("Scripted", Countries.RUSSIA, [], false)],
+    agents: [modelBot, secondBot],
     mapName,
     gameMode: cdapi.getAvailableGameModes(mapName)[0],
     gameSpeed: 6, credits: 10000, unitCount: 0, shortGame: true,
     superWeapons: false, mcvRepacks: true, cratesAppear: false, buildOffAlly: false,
 });
-console.log(`${client.name} vs scripted bot on ${mapName}, a decision every ${cadence} ticks (${cadence / 15}s of game time)`);
+console.log(`${client.name} vs ${opponent} on ${mapName}, a decision every ${cadence} ticks (${cadence / 15}s of game time)`);
 
 const t0 = Date.now();
 let lastThink = 0, thinkMs = 0, reported = 0;
@@ -58,10 +65,14 @@ while (!game.isFinished() && game.getCurrentTick() < maxTicks) {
     if (tick - lastThink >= cadence) {
         lastThink = tick;
         const s = Date.now();
-        try { await modelBot.think(game.gameApi); } catch (e) { die(`decision at tick ${tick}`, e); }
+        // Both sides decide against the same standing-still game, so neither gains from being faster.
+        for (const who of thinkers) {
+            try { await who.think(game.gameApi); } catch (e) { die(`decision at tick ${tick} for ${who.name}`, e); }
+        }
         thinkMs += Date.now() - s;
-        const plan = modelBot.lastPlan;
-        if (plan) transcript.push({ tick, minute: +(tick / 15 / 60).toFixed(1), plan });
+        for (const who of thinkers) {
+            if (who.lastPlan) transcript.push({ tick, minute: +(tick / 15 / 60).toFixed(1), who: who.name, plan: who.lastPlan });
+        }
     }
     if (tick - reported >= 4500) {
         reported = tick;
@@ -78,7 +89,9 @@ const result = {
     wallSeconds: +wall.toFixed(1), thinkSeconds: +(thinkMs / 1000).toFixed(1),
     winner: standing.length === 1 ? standing[0] : null,
     standing, model: client.stats(),
-    decisions: modelBot.decisions, unusableReplies: modelBot.invalidPlans, attackOrders: modelBot.attackOrders,
+    opponent,
+    sides: thinkers.map((w) => ({ name: w.name, decisions: w.decisions, unusable: w.invalidPlans,
+                                  attackOrders: w.attackOrders, scouts: w.scoutsSent, losses: w.losses })),
     players: game.getPlayerStats().map((p) => ({ name: p.name, country: p.country.name, defeated: p.defeated, credits: p.credits })),
 };
 console.log(JSON.stringify(result, null, 2));

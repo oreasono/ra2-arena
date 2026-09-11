@@ -136,9 +136,43 @@ the tournament rules need a draw verdict and a tie-break on economy and army val
 assuming matches resolve; and passivity needs measuring as its own axis, since a model can lose
 without ever being outplayed in a fight.
 
-The most likely lever is intelligence about the opponent. The model is told where the enemy base is
-but sees no enemy units for most of a match, because nothing scouts. A commander who never sees a
-threat and never sees an opening has little reason to commit.
+Reading the reasoning showed it was not confused. Every note said some version of "build a force,
+then attack", right up to the one it wrote while dying. It had already noticed the enemy army was
+larger. What it never had was any sense of *losing*: it could see what it owned, never what it used
+to own.
+
+### Passivity, diagnosed and fixed
+
+Two levers were tried. Scouting worked mechanically -- patrols went out, nine enemy types were
+identified -- and changed nothing. Telling the side how many units and buildings it had lost, how
+many since its last order, and whether enemies were standing in its base changed everything.
+
+### One agent per player
+
+The arrangement this project is for: a model on each side, both deciding against the same
+standing-still game, so neither gains from answering faster.
+
+| | Side A | Side B |
+|---|---|---|
+| Decisions | 30 | 30 |
+| Unusable replies | 0 | 0 |
+| Attack orders | 10 | 19 |
+| Scouting runs | 18 | 39 |
+| Units and buildings lost | 90 | 70 |
+| Credits at the end | 3,075 | 10,925 |
+
+Both held a defensive line for six minutes, then committed within a minute of each other and fought
+for the rest of the match, trading a hundred and sixty units and buildings between them. Neither was
+eliminated. On the tie-break the project already planned -- economy and army value when nobody dies
+-- side B wins on every axis: richer, fewer losses, more aggression, more scouting.
+
+The match did not end because the game stalled but because the decision budget ran out and the sides
+played on without orders. Budget and cadence need setting against the length of match they are meant
+to produce.
+
+One number worth keeping: the game itself simulated in about eight seconds. The models spent
+nineteen minutes thinking. Latency does not affect the result here, but it entirely sets how long a
+season takes to run.
 
 ## Open questions
 

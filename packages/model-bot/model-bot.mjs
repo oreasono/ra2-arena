@@ -34,13 +34,16 @@ your defence, but a force that never leaves home accomplishes nothing. Commit on
 one, keep producing while it fights, and say so in your notes.
 
 You will be shown your recent intentions. If they repeat, you are not making progress: change
-something.`;
+something. In particular, if you have said you will attack "once the force is ready" more than once,
+the force is as ready as it is going to get: send it.`;
 
 export class ModelBot extends Bot {
     #client; #cadence; #maxCalls; #log;
     #baseTile = null; #enemyStart = null; #deployed = false;
     #lastPlan = null; #decisions = 0; #invalid = 0; #placementWarned = null;
     #recent = []; #limitMinutes = 60; #attacks = 0;
+    #intel = new Map(); #scoutId = null; #lastScout = -9999; #scoutsSent = 0;
+    #owned = new Set(); #lost = 0; #lostAtLastDecision = 0; #threatened = false;
 
     constructor(name, country, { client, cadence = 150, maxCalls = 120, limitMinutes = 60, log = () => {} } = {}) {
         super(name, country);
@@ -56,6 +59,16 @@ export class ModelBot extends Bot {
     get invalidPlans() { return this.#invalid; }
     get lastPlan() { return this.#lastPlan; }
     get attackOrders() { return this.#attacks; }
+    get scoutsSent() { return this.#scoutsSent; }
+    get losses() { return this.#lost; }
+    get intelSeen() { return this.#intel.size; }
+
+    #intelSummary(game) {
+        if (!this.#intel.size) return "nothing yet";
+        const now = game.getCurrentTick();
+        return [...this.#intel].map(([name, v]) =>
+            `${name}${v.building ? " (building)" : ""} last seen ${Math.round((now - v.lastTick) / 15)}s ago`).join(", ");
+    }
 
     onGameStart(game) {
         const me = this.player.getPlayerData();
@@ -75,6 +88,9 @@ export class ModelBot extends Bot {
         if (!this.#deployed) this.#deployMcv(game);
         this.#keepHarvestersWorking(game);
         this.#placeFinishedBuildings(game);
+        this.#rememberEnemy(game);
+        this.#trackLosses(game);
+        this.#scout(game);
     }
 
     #deployMcv(game) {
@@ -93,6 +109,52 @@ export class ModelBot extends Bot {
     #hasConstructionYard() {
         return this.player.getVisibleUnits("self",
             (r) => r.type === ObjectType.Building && r.constructionYard).length > 0;
+    }
+
+    // Nothing reveals the map on its own, so a commander who is never shown a threat or an opening
+    // has no reason to commit. One cheap unit is kept walking towards the enemy, and whatever it
+    // sees is remembered after it dies.
+    #scout(game) {
+        const tick = game.getCurrentTick();
+        if (tick - this.#lastScout < 900 || !this.#enemyStart) return;   // one minute of game time
+        const army = this.player.getVisibleUnits("self", (r) =>
+            r.type !== ObjectType.Building && !r.harvester && !r.constructionYard);
+        if (army.length < 2) return;                                     // never send the only defender
+        const scout = army.find((id) => id !== this.#scoutId) ?? army[0];
+        this.#scoutId = scout;
+        this.#lastScout = tick;
+        this.player.actions.orderUnits([scout], OrderType.AttackMove, this.#enemyStart.x, this.#enemyStart.y);
+        this.#scoutsSent++;
+    }
+
+    // Without this the commander cannot tell a winning position from a losing one: it sees what it
+    // owns now, never what it used to own.
+    #trackLosses(game) {
+        const mine = this.player.getVisibleUnits("self");
+        const now = new Set(mine);
+        if (this.#owned.size) {
+            for (const id of this.#owned) if (!now.has(id)) this.#lost++;
+        }
+        this.#owned = now;
+        const base = this.#baseTile;
+        if (!base) return;
+        this.#threatened = this.player.getVisibleUnits("enemy").some((id) => {
+            const d = game.getUnitData(id);
+            return d && Math.hypot(d.tile.rx - base.rx, d.tile.ry - base.ry) < 12;
+        });
+    }
+
+    #rememberEnemy(game) {
+        const seen = this.player.getVisibleUnits("enemy");
+        if (!seen.length) return;
+        const tick = game.getCurrentTick();
+        for (const id of seen) {
+            const d = game.getUnitData(id);
+            if (!d) continue;
+            const prev = this.#intel.get(d.rules.name);
+            this.#intel.set(d.rules.name, { count: Math.max(prev?.count ?? 0, 1), lastTick: tick,
+                                            building: d.rules.type === ObjectType.Building });
+        }
     }
 
     #keepHarvestersWorking(game) {
@@ -168,6 +230,7 @@ export class ModelBot extends Bot {
         this.#lastPlan = plan;
         if (plan.notes) { this.#recent.push(String(plan.notes).slice(0, 90)); if (this.#recent.length > 3) this.#recent.shift(); }
         if (plan.stance === "attack") this.#attacks++;
+        this.#lostAtLastDecision = this.#lost;
         this.#apply(game, plan);
     }
 
@@ -199,7 +262,9 @@ export class ModelBot extends Bot {
             `Your buildings: ${tally(buildings)}`,
             `Your army: ${tally(army)} (${army.length} combat units in total)`,
             `Harvesters: ${this.player.getVisibleUnits("self", (r) => r.harvester).length}`,
-            `Enemy units you can see: ${tally(enemy)}`,
+            `Enemy in sight right now: ${tally(enemy)}${this.#threatened ? " -- SOME ARE AT YOUR BASE" : ""}`,
+            `You have lost ${this.#lost} units or buildings so far${this.#lost > this.#lostAtLastDecision ? ` (${this.#lost - this.#lostAtLastDecision} since your last order)` : ""}.`,
+            `Enemy seen at any point: ${this.#intelSummary(game)}`,
             `Enemy base is near ${this.#enemyStart?.x ?? "?"},${this.#enemyStart?.y ?? "?"}; yours is at ${this.#baseTile?.rx ?? "?"},${this.#baseTile?.ry ?? "?"}.`,
             ``,
             `In production: ${this.#queueSummary()}`,
@@ -208,6 +273,8 @@ export class ModelBot extends Bot {
             `Buildable infantry: ${buildable(QueueType.Infantry)}`,
             `Buildable vehicles: ${buildable(QueueType.Vehicles)}`,
             ``,
+            ...(me.credits > 3000 && this.#queueSummary() === "nothing"
+                ? [`You are sitting on ${me.credits} credits with nothing in production. That money does nothing where it is.`] : []),
             `Recent intentions: ${this.#recent.length ? this.#recent.map((n, i) => `${i + 1}) ${n}`).join("  ") : "none yet"}`,
             `Your orders?`,
         ].join("\n");
