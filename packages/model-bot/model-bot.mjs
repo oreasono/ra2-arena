@@ -27,6 +27,11 @@ Unpacking at the start, harvesting, and where buildings go are handled for you: 
 Use only identifiers that appear in the buildable lists you are given. Keep "build" and "train"
 short: they are queued, not instant, and you will be asked again shortly.
 
+A duplicate production building does not produce on its own: a second barracks or war factory only
+lets you queue faster, and queue speed is worthless while you have no money to spend. A second
+refinery is different -- that one does add income. Check the tally of what you already own before
+asking for another of anything.
+
 Economy first, then production buildings, then an army. But the match is on a clock, and running
 out of time with both sides alive counts as a win for neither: sitting on a good economy until the
 clock expires is a way to lose. "attack" sends every combat unit at the enemy base, so it costs you
@@ -275,6 +280,11 @@ export class ModelBot extends Bot {
             ``,
             ...(me.credits > 3000 && this.#queueSummary() === "nothing"
                 ? [`You are sitting on ${me.credits} credits with nothing in production. That money does nothing where it is.`] : []),
+            // The opposite failure is the common one: broke from minute ten onward, still buying
+            // production buildings it cannot feed. Say which constraint is actually binding.
+            ...(me.credits < 400
+                ? [`You are broke: ${me.credits} credits, ${this.player.getVisibleUnits("self", (r) => r.harvester).length} harvester(s). ` +
+                   `Income is what limits you now, not build options. Only refineries and miners raise it.`] : []),
             `Recent intentions: ${this.#recent.length ? this.#recent.map((n, i) => `${i + 1}) ${n}`).join("  ") : "none yet"}`,
             `Your orders?`,
         ].join("\n");
