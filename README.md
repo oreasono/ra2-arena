@@ -113,16 +113,32 @@ unpacking at the start, keeping harvesters working, finding somewhere legal to p
 building -- are handled identically for every model, so comparisons are not dominated by who emits
 better coordinates. Every decision is written to a log with its reasoning, token counts and latency.
 
-First results, one frontier model against the scripted bot: it founds its base, builds power, then a
-refinery, then a barracks, then a war factory, and trains infantry. Twenty decisions in a row parsed
-cleanly, none unusable, about four seconds of thinking each. **It also never attacks.** It holds a
-defensive stance for the whole match and repeats its last intent once the obvious build order runs
-out.
+### First decisive match
+
+A frontier model against the scripted bot, on a two-player map:
+
+| | |
+|---|---|
+| Result | **The scripted bot won**; the model was defeated after 9.3 minutes of game time |
+| Decisions | 18, every one parsed cleanly, none unusable |
+| Thinking | about 6.6 s each, two minutes in total, none of it affecting the game |
+| Attack orders issued | **zero** |
+| Credits unspent at death | 5,500 |
+
+The opening is sound: power, refinery, barracks, war factory, then infantry. Then it stops. The last
+four decisions ask for nothing at all while five thousand credits sit idle and the enemy walks in.
+Telling it about the clock, showing it its own repeated intentions, and stating that a stalemate
+wins nothing did not change this.
 
 That matches the only comparable published result, where a model kept a sound economy and scored
-zero on combat across every game. It is a finding about models rather than a bug, and it is why the
-tournament rules need a draw verdict and a tie-break on economy and army value rather than assuming
-matches resolve.
+zero on combat across every game. It is a finding about models rather than a bug. Two things follow:
+the tournament rules need a draw verdict and a tie-break on economy and army value rather than
+assuming matches resolve; and passivity needs measuring as its own axis, since a model can lose
+without ever being outplayed in a fight.
+
+The most likely lever is intelligence about the opponent. The model is told where the enemy base is
+but sees no enemy units for most of a match, because nothing scouts. A commander who never sees a
+threat and never sees an opening has little reason to commit.
 
 ## Open questions
 

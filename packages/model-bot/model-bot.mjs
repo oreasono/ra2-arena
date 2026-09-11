@@ -25,17 +25,26 @@ Reply with JSON only, in this shape:
 
 Unpacking at the start, harvesting, and where buildings go are handled for you: do not ask for them.
 Use only identifiers that appear in the buildable lists you are given. Keep "build" and "train"
-short: they are queued, not instant, and you will be asked again shortly. Choose "attack" only when
-you have a force worth committing; it sends every combat unit at the enemy base and leaves home
-uncovered. Economy first, then production buildings, then army.`;
+short: they are queued, not instant, and you will be asked again shortly.
+
+Economy first, then production buildings, then an army. But the match is on a clock, and running
+out of time with both sides alive counts as a win for neither: sitting on a good economy until the
+clock expires is a way to lose. "attack" sends every combat unit at the enemy base, so it costs you
+your defence, but a force that never leaves home accomplishes nothing. Commit once you have a real
+one, keep producing while it fights, and say so in your notes.
+
+You will be shown your recent intentions. If they repeat, you are not making progress: change
+something.`;
 
 export class ModelBot extends Bot {
     #client; #cadence; #maxCalls; #log;
     #baseTile = null; #enemyStart = null; #deployed = false;
     #lastPlan = null; #decisions = 0; #invalid = 0; #placementWarned = null;
+    #recent = []; #limitMinutes = 60; #attacks = 0;
 
-    constructor(name, country, { client, cadence = 150, maxCalls = 120, log = () => {} } = {}) {
+    constructor(name, country, { client, cadence = 150, maxCalls = 120, limitMinutes = 60, log = () => {} } = {}) {
         super(name, country);
+        this.#limitMinutes = limitMinutes;
         this.#client = client;
         this.#cadence = cadence;          // ticks between decisions; 15 ticks is one game second
         this.#maxCalls = maxCalls;
@@ -46,6 +55,7 @@ export class ModelBot extends Bot {
     get decisions() { return this.#decisions; }
     get invalidPlans() { return this.#invalid; }
     get lastPlan() { return this.#lastPlan; }
+    get attackOrders() { return this.#attacks; }
 
     onGameStart(game) {
         const me = this.player.getPlayerData();
@@ -156,6 +166,8 @@ export class ModelBot extends Bot {
         this.#decisions++;
         if (!plan) { this.#invalid++; this.#log(`${this.name}: unusable reply`); return; }
         this.#lastPlan = plan;
+        if (plan.notes) { this.#recent.push(String(plan.notes).slice(0, 90)); if (this.#recent.length > 3) this.#recent.shift(); }
+        if (plan.stance === "attack") this.#attacks++;
         this.#apply(game, plan);
     }
 
@@ -181,11 +193,11 @@ export class ModelBot extends Bot {
         const enemy = this.player.getVisibleUnits("enemy");
 
         return [
-            `Game time: ${Math.floor(game.getCurrentTime() / 60)} minutes.`,
+            `Game time: ${Math.floor(game.getCurrentTime() / 60)} minutes of a ${this.#limitMinutes}-minute limit.`,
             `Credits: ${me.credits}. Power produced ${me.power.total}, consumed ${me.power.drain}${me.power.isLowPower ? " (BROWNOUT)" : ""}.`,
             `Base founded: ${this.#hasConstructionYard() ? "yes" : "no, the construction vehicle is still unpacking"}.`,
             `Your buildings: ${tally(buildings)}`,
-            `Your army: ${tally(army)}`,
+            `Your army: ${tally(army)} (${army.length} combat units in total)`,
             `Harvesters: ${this.player.getVisibleUnits("self", (r) => r.harvester).length}`,
             `Enemy units you can see: ${tally(enemy)}`,
             `Enemy base is near ${this.#enemyStart?.x ?? "?"},${this.#enemyStart?.y ?? "?"}; yours is at ${this.#baseTile?.rx ?? "?"},${this.#baseTile?.ry ?? "?"}.`,
@@ -196,7 +208,7 @@ export class ModelBot extends Bot {
             `Buildable infantry: ${buildable(QueueType.Infantry)}`,
             `Buildable vehicles: ${buildable(QueueType.Vehicles)}`,
             ``,
-            `Previous intent: ${this.#lastPlan?.notes ?? "none yet"}`,
+            `Recent intentions: ${this.#recent.length ? this.#recent.map((n, i) => `${i + 1}) ${n}`).join("  ") : "none yet"}`,
             `Your orders?`,
         ].join("\n");
     }

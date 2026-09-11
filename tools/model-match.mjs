@@ -38,7 +38,8 @@ const transcript = [];
 const log = (m) => { console.log(`  ${m}`); transcript.push({ at: Date.now(), text: m }); };
 
 await cdapi.init(process.env.MIX_DIR);
-const modelBot = new ModelBot("Model", Countries.USA, { client, cadence, maxCalls, log });
+const limitMinutes = Math.round(maxTicks / 15 / 60);
+const modelBot = new ModelBot("Model", Countries.USA, { client, cadence, maxCalls, limitMinutes, log });
 const game = await cdapi.createGame({
     online: false,
     agents: [modelBot, new SupalosaBot("Scripted", Countries.RUSSIA, [], false)],
@@ -77,7 +78,7 @@ const result = {
     wallSeconds: +wall.toFixed(1), thinkSeconds: +(thinkMs / 1000).toFixed(1),
     winner: standing.length === 1 ? standing[0] : null,
     standing, model: client.stats(),
-    decisions: modelBot.decisions, unusableReplies: modelBot.invalidPlans,
+    decisions: modelBot.decisions, unusableReplies: modelBot.invalidPlans, attackOrders: modelBot.attackOrders,
     players: game.getPlayerStats().map((p) => ({ name: p.name, country: p.country.name, defeated: p.defeated, credits: p.credits })),
 };
 console.log(JSON.stringify(result, null, 2));
