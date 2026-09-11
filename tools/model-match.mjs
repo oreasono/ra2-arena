@@ -27,8 +27,16 @@ process.on("unhandledRejection", (e) => die("promise", e));
 
 const mapName = process.env.MAP ?? "mp06t2.map";
 const cadence = Number(process.env.CADENCE ?? 150);
-const maxCalls = Number(process.env.MAX_CALLS ?? 120);
 const maxTicks = Number(process.env.MAX_TICKS ?? 60000);
+// Derive the budget from the length of match it has to cover. Setting the two independently let a
+// match run out of decisions half way through and coast to the tick limit with nobody giving orders,
+// which reads as a draw but is really a configuration error.
+const needed = Math.ceil(maxTicks / cadence) + 2;
+const maxCalls = Number(process.env.MAX_CALLS ?? needed);
+if (maxCalls < needed) {
+    console.warn(`note: a budget of ${maxCalls} decisions covers ${Math.round(maxCalls * cadence / 15 / 60)} of ` +
+                 `${Math.round(maxTicks / 15 / 60)} game minutes; the rest will be played without orders`);
+}
 const logDir = process.env.LOG_DIR ?? "./data/logs";
 if (!process.env.MIX_DIR) { console.error("set MIX_DIR (see tools/make-mix-dir.sh)"); process.exit(1); }
 mkdirSync(logDir, { recursive: true });
@@ -89,7 +97,7 @@ const result = {
     wallSeconds: +wall.toFixed(1), thinkSeconds: +(thinkMs / 1000).toFixed(1),
     winner: standing.length === 1 ? standing[0] : null,
     standing, model: client.stats(),
-    opponent,
+    opponent, decisionBudget: maxCalls,
     sides: thinkers.map((w) => ({ name: w.name, decisions: w.decisions, unusable: w.invalidPlans,
                                   attackOrders: w.attackOrders, scouts: w.scoutsSent, losses: w.losses })),
     players: game.getPlayerStats().map((p) => ({ name: p.name, country: p.country.name, defeated: p.defeated, credits: p.credits })),
