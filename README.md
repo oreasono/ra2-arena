@@ -97,6 +97,33 @@ a draw verdict and a tie-break on economy and army value rather than assuming ev
 Install note: the published bot declares a peer dependency on an older engine API, so `npm install`
 needs `--legacy-peer-deps`. The combination above was tested and plays through.
 
+## A model playing
+
+`tools/model-match.mjs` puts a language model on one side and the scripted bot on the other. The
+engine only advances when the runner calls it, so between turns the game stands still while the
+model is asked what to do: a slow model and a fast one face the same game, and results compare on
+play rather than on response time.
+
+```
+MIX_DIR=~/ra2-mix MODEL_BASE_URL=... MODEL_API_KEY=... MODEL_NAME=... node tools/model-match.mjs
+```
+
+The model decides what to produce and whether to push or hold. Mechanics that are not decisions --
+unpacking at the start, keeping harvesters working, finding somewhere legal to put a finished
+building -- are handled identically for every model, so comparisons are not dominated by who emits
+better coordinates. Every decision is written to a log with its reasoning, token counts and latency.
+
+First results, one frontier model against the scripted bot: it founds its base, builds power, then a
+refinery, then a barracks, then a war factory, and trains infantry. Twenty decisions in a row parsed
+cleanly, none unusable, about four seconds of thinking each. **It also never attacks.** It holds a
+defensive stance for the whole match and repeats its last intent once the obvious build order runs
+out.
+
+That matches the only comparable published result, where a model kept a sound economy and scored
+zero on combat across every game. It is a finding about models rather than a bug, and it is why the
+tournament rules need a draw verdict and a tie-break on economy and army value rather than assuming
+matches resolve.
+
 ## Open questions
 
 - Model roster for season 1.
