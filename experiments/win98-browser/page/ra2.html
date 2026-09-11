@@ -103,7 +103,7 @@ mount d .
 dir d:\\ /w
 dir d:\\ra2
 ${mount(2, c)}
-${q.get("cd") ? `imgmount 4 ${q.get("cd")} -t iso` : ""}
+${q.get("cd") ? `imgmount 4 d:\\${q.get("gamedir") ?? "Ra2"}\\${q.get("cd")} -t iso` : ""}
 boot c: ${readOnly ? "-convertfatro" : "-convertfat"}
 `;
 

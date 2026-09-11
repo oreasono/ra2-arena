@@ -158,7 +158,35 @@ are DRM-wrapped, it ships a DirectDraw shim written for current Windows, and it 
 application id. A build repackaged for present-day Windows may simply not complete startup on
 Windows 98, even though its header claims compatibility and its early stages clearly work.
 
-**Testing that needs a different copy — an original install predating the re-release.** Until one is
+### Retail binaries, and what per-step evidence changed
+
+A retail disc later made it possible to test the original 2001 executables against the same
+pipeline. Two things came out of it, both from photographing **every** guest step rather than
+assuming the sequence worked -- an assumption that had already produced wrong conclusions twice
+here, and did so a third time before this was fixed.
+
+| Step | Outcome |
+|---|---|
+| Registering the encryption component | Succeeded |
+| Registering the online browser component | Succeeded |
+| Registering the main online component | **Failed**, `LoadLibrary` error `0x485` |
+| Starting the retail executable | Nothing at all: no window, no error, no log |
+
+`0x485` is "a dependent library was not found". Reading the import table settles which one: of its
+eight imports, seven are standard, and the eighth is an SNMP library that this Windows does not ship
+by default and that is not on the disc either. It belongs to an optional networking component.
+
+The disc's installer configuration also names the volume label it looks for, which an earlier
+hand-made probe disc had guessed wrong. Rebuilt with the right label, the game still starts and
+exits silently.
+
+That silent exit is the current open question. The likely explanation is the combination being
+tested: a 2001 executable against data archives from a modern re-release, which may have been
+repackaged. Settling it means installing from the disc's own cabinets, which carry the original
+data -- and that needs the base game's disc as well, since this one is an expansion whose installer
+requires the parent product.
+
+**The store copy's own failure needs a different copy — an original install predating the re-release.** Until one is
 available this track is blocked on the game, not on the emulation. Everything built here would
 carry over unchanged.
 
