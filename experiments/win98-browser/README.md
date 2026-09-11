@@ -278,10 +278,29 @@ put where it was, it was silently ignored and the guest ran with 2.5 MB instead 
 and shows its help text but never activates. Moving the pointer a fraction between press and release
 makes it register. This cost several attempts that looked like a broken button.
 
-**LAN is the next milestone, and it is inert for a concrete reason.** The network entry does nothing
-because no IPX protocol is bound in the guest -- the game hides LAN play when none is. The emulator
-has the network card compiled in; what is missing is enabling it, installing its driver in Windows,
-and binding IPX/SPX. That is the whole remaining distance to two instances playing each other.
+**LAN is inert, and the reason is the emulator build, not the guest.** The network entry does nothing
+because no IPX protocol is bound -- the game hides LAN play when none is. Getting one bound means
+the emulated network card, and that card has no usable backend here:
+
+| Check | Result |
+|---|---|
+| Card compiled into the build | Yes: its init strings, config keys and poller symbol are all present |
+| Backends it accepts | Two: a host-capture backend and a user-mode TCP/IP stack |
+| Host capture in a browser | Impossible -- there is no host interface to capture |
+| User-mode stack linked in | **No.** Its library exports are absent; only the config text that describes it is there |
+| Card enabled and probed from DOS | Its packet driver is not registered, so the card did not come up |
+
+The build's own text says the card is disabled when no backend is available, which is what we
+observe. The networking js-dos does ship is an IPX tunnel at the DOS level, reached through a relay;
+a protected-mode Windows guest runs its own protocol stack against a network adapter and cannot use
+it.
+
+**So this architecture runs the game but cannot play it between instances.** That is a property of
+the published emulator build, not of the game or of anything above it. Changing it means building
+the emulator with a browser-capable Ethernet backend. Everything else on this track -- assembling
+the files, injecting them, booting, driving the guest, reaching a running match -- works and is
+reusable. `netprobe.mjs` runs the card probe; `?noboot=1` stops before the operating system takes
+the machine, so DOS-level questions can be asked at all.
 
  
 

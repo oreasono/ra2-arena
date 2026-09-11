@@ -90,6 +90,11 @@ core=auto
 integration device=true
 [sblaster]
 sbtype=sb16vibra
+[ne2000]
+ne2000=true
+nicbase=300
+nicirq=10
+backend=auto
 [fdc, primary]
 int13fakev86io=true
 [ide, primary]
@@ -108,7 +113,7 @@ dir d:\\ /w
 dir d:\\ra2
 ${mount(2, c)}
 ${q.get("cd") ? `imgmount e: d:\\${q.get("gamedir") ?? "Ra2"}\\${q.get("cd")} -t iso -ide 2m` : ""}
-boot c: ${readOnly ? "-convertfatro" : "-convertfat"}
+${q.get("noboot") === "1" ? "ne2000.com 0x60 10 0x300" : `boot c: ${readOnly ? "-convertfatro" : "-convertfat"}`}
 `;
 
     const props = Dos(document.getElementById("dos"), {
