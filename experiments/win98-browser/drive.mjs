@@ -116,6 +116,23 @@ createServer(async (req, res) => {
                 const ok = await runCmd(q.get("cmd") ?? "", num(q.get("settle"), 8000));
                 return send({ ok, file: await shot(q.get("label") ?? "run") });
             }
+            case "/press": {
+                // A 40 ms press is shorter than the game's own mouse polling interval, so its menu
+                // saw the pointer move but never saw a click. Hold the button down instead.
+                await page.evaluate(async ([x, y, ms]) => {
+                    window.ci.sendMouseMotion(x, y); window.ci.sendMouseSync();
+                    await new Promise((r) => setTimeout(r, 250));
+                    window.ci.sendMouseButton(0, true);
+                    await new Promise((r) => setTimeout(r, ms));
+                    window.ci.sendMouseButton(0, false);
+                }, [num(q.get("x"), 0.5), num(q.get("y"), 0.5), num(q.get("ms"), 300)]);
+                await page.waitForTimeout(num(q.get("settle"), 1500));
+                return send({ ok: true, file: await shot(q.get("label") ?? "press") });
+            }
+            case "/js": {
+                const out = await page.evaluate((code) => eval(code), q.get("code") ?? "1");
+                return send({ ok: true, out });
+            }
             case "/state": return send(await page.evaluate(() => window.state));
             case "/stdout": return send({ out: await page.evaluate(() => window.stdoutText()) });
             case "/quit": send({ ok: true }); await ctx.close(); process.exit(0); break;

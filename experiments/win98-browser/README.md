@@ -251,6 +251,38 @@ Windows through it, rather than attaching it from the emulator, would let the or
 launcher run. The guest's system drive has too little free space for the install, but the injected
 drive reports 2 GB free and is writable, so the install would have to be directed there.
 
+### It runs
+
+The game starts, reaches its menu, and plays a skirmish in the browser guest.
+
+**The silent exit was the wrong entry point.** Every attempt here had started the game binary
+directly. That binary is not the entry point: it expects to be started by the launcher beside it and
+to hand a handle back through a shared memory mapping, which is what its own strings say when they
+mention failing to notify a launcher. Started through the launcher, it opens normally. Seven rounds
+of hypotheses were spent on the environment while the actual fault was one level up, in how it was
+being invoked -- and the evidence naming it had been sitting in the binary the whole time.
+
+Four things had to be true at once, and each was false by default:
+
+| Requirement | Default | Note |
+|---|---|---|
+| Started via the launcher | We ran the game binary | The one that mattered |
+| Desktop at 16-bit colour | 8-bit | Applies without a restart, but **does not survive a page reload** |
+| A mode the emulated card can set | The copy carried a previous owner's widescreen setting | Its settings file overrides what the card can do |
+| Working directory = game folder | Whatever the caller had | Archives are opened by relative path |
+
+The video memory setting also belongs in the emulator's main section rather than its video section;
+put where it was, it was silently ignored and the guest ran with 2.5 MB instead of 4 MB.
+
+**Clicks need movement.** A press and release at one point is seen as a hover: the menu highlights
+and shows its help text but never activates. Moving the pointer a fraction between press and release
+makes it register. This cost several attempts that looked like a broken button.
+
+**LAN is the next milestone, and it is inert for a concrete reason.** The network entry does nothing
+because no IPX protocol is bound in the guest -- the game hides LAN play when none is. The emulator
+has the network card compiled in; what is missing is enabling it, installing its driver in Windows,
+and binding IPX/SPX. That is the whole remaining distance to two instances playing each other.
+
  
 
 Two traps when scripting the guest. Driving the Start menu without checking it opened sends the
