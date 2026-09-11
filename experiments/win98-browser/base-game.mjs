@@ -39,7 +39,8 @@ const runCommand = async (cmd) => {
     return false;
 };
 
-await page.goto("http://127.0.0.1:8123/ra2.html?slot=0&manifest=/game-manifest.json&ro=0");
+const cdQ = process.env.CD ? `&cd=${encodeURIComponent(process.env.CD)}` : "";
+await page.goto(`http://127.0.0.1:8123/ra2.html?slot=0&manifest=/game-manifest.json&ro=0${cdQ}`);
 for (let i = 0; i < 48; i++) {
     await page.waitForTimeout(10000);
     const st = await page.evaluate(() => window.state).catch(() => null);
@@ -54,9 +55,13 @@ await runCommand(`regedit ${GAME}${B}install.reg`);
 await page.waitForTimeout(8000); await page.keyboard.press("Enter");
 await page.waitForTimeout(6000); await page.keyboard.press("Enter");
 await page.waitForTimeout(4000);
-await runCommand(`regsvr32 ${GAME}${B}Blowfish.dll`);
-await page.waitForTimeout(10000); await page.keyboard.press("Enter");
-await page.waitForTimeout(4000);
+for (const dll of [`${GAME}${B}Blowfish.dll`, `${GAME}${B}Internet${B}WOLAPI.dll`, `${GAME}${B}Internet${B}WOLBrowser.dll`]) {
+    await runCommand(`regsvr32 ${dll}`);
+    await page.waitForTimeout(9000);
+    await page.keyboard.press("Enter");
+    await page.waitForTimeout(3000);
+}
+await shot("wol-registered");
 
 console.log(`launching ${EXE}`);
 await runCommand(`${GAME}${B}${EXE}`);

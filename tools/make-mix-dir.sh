@@ -40,6 +40,15 @@ for f in language.mix langmd.mix; do
     rm -f "$OUT/$f"; ln "$CONTENT/depot_$LANG_DEPOT/$f" "$OUT/$f"
 done
 
+# Small subdirectories the release ships alongside the archives. The online-play components live in
+# one of them, and the game registers and initialises those at startup, so a flat copy of the
+# top-level files alone is not a complete install.
+for sub in Internet RMCache Taunts; do
+    [ -d "$CONTENT/depot_$BASE_DEPOT/$sub" ] || continue
+    mkdir -p "$OUT/$sub"
+    find "$CONTENT/depot_$BASE_DEPOT/$sub" -maxdepth 1 -type f -exec ln {} "$OUT/$sub"/ \;
+done
+
 echo "MIX_DIR ready: $OUT"
 echo "  files:    $(ls -1 "$OUT" | wc -l | tr -d ' ')"
 echo "  language: depot_$LANG_DEPOT"

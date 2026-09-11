@@ -141,13 +141,28 @@ A sixth round narrowed it considerably by starting the base game rather than the
 | A file written into the game directory from inside the guest reads back and appears in a listing | The disk is genuinely writable, so a game unable to save settings is not the cause |
 | The directory holds no report or log file after the failure | The game gives up before it writes anything |
 
-That leaves the CD-ROM check as the strongest remaining candidate: the binary enumerates drives,
-carries a "No CD drives found" message, and the guest's optical drive is empty. Confirming it means
-guessing at what the game expects on that disc, which is why it has not been attempted yet.
+A seventh round closed out the list:
 
-Eleven explanations have now been tested and eliminated. The failure is inside the game's own
-initialisation, and the dialog covers several distinct internal causes. Remaining untested: whether the game
-insists on a CD-ROM being present.
+| Hypothesis | Test | Result |
+|---|---|---|
+| The shipped subdirectories matter, including the online-play components | Injected them, registered those components, pointed the matching registry key at them | Still fails |
+| The game wants an optical drive with a disc in it | Built a small ISO and attached it as an emulated CD before boot | Still fails |
+
+**Thirteen explanations tested, thirteen eliminated, and the plumbing is proven at every step**:
+files reach the guest, the disk is writable, the display initialises, the archives are readable
+(the splash screen is drawn from them), several instances run side by side, and DOS-level IPX
+connects between them.
+
+The remaining explanation is the copy of the game itself. This is a modern re-release: its launchers
+are DRM-wrapped, it ships a DirectDraw shim written for current Windows, and it carries a store
+application id. A build repackaged for present-day Windows may simply not complete startup on
+Windows 98, even though its header claims compatibility and its early stages clearly work.
+
+**Testing that needs a different copy — an original install predating the re-release.** Until one is
+available this track is blocked on the game, not on the emulation. Everything built here would
+carry over unchanged.
+
+ 
 
 Two traps when scripting the guest. Driving the Start menu without checking it opened sends the
 following keystrokes to the desktop, where single letters select icons; a diagnostic run opened the

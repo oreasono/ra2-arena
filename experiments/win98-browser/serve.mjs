@@ -60,9 +60,22 @@ async function proxy(req, res, path) {
 // ships map packs, a type library and an IPX emulation component, and the game will not start
 // without them.
 const SKIP = /^(movies0[12]\.mix|movmd03\.mix)$/i;
+// Walk one level of subdirectories too: the online-play components live in one of them, and a
+// top-level-only copy is not a complete install.
 const gameFiles = () => {
     const dir = process.env.GAME_DIR;
-    return readdirSync(dir).filter((n) => !SKIP.test(n) && statSync(join(dir, n)).isFile());
+    const out = [];
+    for (const n of readdirSync(dir)) {
+        if (SKIP.test(n)) continue;
+        const st = statSync(join(dir, n));
+        if (st.isFile()) out.push(n);
+        else if (st.isDirectory()) {
+            for (const f of readdirSync(join(dir, n))) {
+                if (statSync(join(dir, n, f)).isFile()) out.push(`${n}/${f}`);
+            }
+        }
+    }
+    return out;
 };
 // Generated, not read from disk: see the /game/install.reg handler.
 const GENERATED = [{ name: "install.reg", size: 220 }, { name: "run.bat", size: 40 }, { name: "runmd.bat", size: 42 }];
@@ -112,7 +125,11 @@ http.createServer(async (req, res) => {
         const drive = new URL(req.url, "http://x").searchParams.get("drive") ?? "D";
         const dir = new URL(req.url, "http://x").searchParams.get("dir") ?? "RA2";
         const base = `${drive}:\\\\${dir}`;
+        // The online-play component lives in a subdirectory and the game looks it up through its own
+        // registry key, so point that at the injected copy as well.
         const reg = ["REGEDIT4", "",
+            "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Westwood\\WOLAPI]",
+            `"InstallPath"="${base}\\\\Internet\\\\wolapi.dll"`, "",
             "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Westwood\\Red Alert 2]",
             `"InstallPath"="${base}\\\\game.exe"`, "",
             "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Westwood\\Yuri's Revenge]",
@@ -122,7 +139,7 @@ http.createServer(async (req, res) => {
         return;
     }
     if (path.startsWith("/game/")) {
-        const name = path.slice("/game/".length);
+        const name = decodeURIComponent(path.slice("/game/".length));
         if (!gameFiles().includes(name)) { res.writeHead(404); res.end("not in manifest"); return; }
         try {
             const full = join(process.env.GAME_DIR, name);
