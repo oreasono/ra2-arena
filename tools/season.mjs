@@ -36,10 +36,25 @@ for (const r of results) {
     const [a, b] = r.sides ?? [];
     // Nobody eliminated: fall back to economy and attrition, which is the planned tie-break.
     const surv = r.players.filter((p) => !p.defeated);
-    const verdict = r.winner ? `${r.winner} eliminated the other`
-        : surv.length === 2
-            ? `draw, tie-break to ${r.players[0].credits >= r.players[1].credits ? r.players[0].name : r.players[1].name}`
-            : "no result";
+    // A tie-break that compares credits with >= hands an exactly equal match to whoever happens to
+    // be first in the array, which is not a result at all: both sides finishing on zero is the
+    // common case. Rank on economy, then on attrition, then admit it is a draw.
+    const tieBreak = () => {
+        const [p, q] = r.players;
+        const sideOf = (n) => (r.sides ?? []).find((s) => s.name === n) ?? {};
+        if (p.credits !== q.credits) return [p.credits > q.credits ? p.name : q.name, "economy"];
+        const lp = sideOf(p.name).losses, lq = sideOf(q.name).losses;
+        if (lp !== lq && lp !== undefined) return [lp < lq ? p.name : q.name, "attrition"];
+        const ap = sideOf(p.name).attackOrders, aq = sideOf(q.name).attackOrders;
+        if (ap !== aq && ap !== undefined) return [ap > aq ? p.name : q.name, "aggression"];
+        return [null, "nothing separates them"];
+    };
+    let verdict;
+    if (r.winner) verdict = `${r.winner} eliminated the other`;
+    else if (surv.length === 2) {
+        const [who, on] = tieBreak();
+        verdict = who ? `draw, tie-break to ${who} on ${on}` : "draw, genuinely level";
+    } else verdict = "no result";
     rows.push({ map: r.map, minutes: r.gameMinutes, verdict,
                 a: a && `${a.name} atk=${a.attackOrders} lost=${a.losses}`,
                 b: b && `${b.name} atk=${b.attackOrders} lost=${b.losses}`,
