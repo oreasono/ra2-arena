@@ -190,6 +190,67 @@ requires the parent product.
 available this track is blocked on the game, not on the emulation. Everything built here would
 carry over unchanged.
 
+### Three copies, one outcome
+
+The paragraph above turned out to be wrong about the cause, and the way it was settled is worth
+recording: an original retail disc, an installed copy built from it by hand, and a pre-installed
+no-CD copy were all tried against the same guest. All three fail. So the copy of the game is not
+the variable, and the earlier conclusion was an inference presented as a finding.
+
+**The disc's own installer cannot run here, and the reason is in the binaries.** Both the root
+bootstrapper's target and the game's launcher carry a well-known disc-protection wrapper: two extra
+PE sections and its signature string. Every one of them dies at the *same* address with the *same*
+bytes at the instruction pointer, which is un-decrypted code. That scheme authenticates against
+sectors a disc image cannot carry, because the image format stores 2048 bytes per sector and the
+check reads what lives outside them. The unprotected binaries in the same folder have ordinary
+sections and no signature.
+
+| Binary | Protection | Behaviour in the guest |
+|---|---|---|
+| Disc installer | Wrapped | Invalid page fault, same address every run |
+| Game launcher | Wrapped | Invalid page fault, same address |
+| Game executable | None | Starts, exits immediately, writes nothing |
+| Multiplayer helper | None | n/a |
+
+**The installer is avoidable.** Its payload is a plain Microsoft cabinet holding the two big
+archives; with the loose files beside it and the archives in the disc root, a complete original
+install can be assembled on the host and injected like any other file set. That is how the retail
+copy was tested at all, and it is a better route than the installer even if the installer worked,
+because it is scriptable and repeatable.
+
+**Two configuration faults, both real, neither the cause.**
+
+| Fault | Evidence | Fixed by |
+|---|---|---|
+| Video memory setting ignored | The guest's own diagnostic reported 2.5 MB | The key belongs in `[dosbox]`, not `[video]`; it then reports 4 MB |
+| Desktop is 8-bit, which the game cannot use | Same diagnostic, display page | Switch to 16-bit; it applies without a restart, but does **not** survive a page reload |
+
+**The emulated video stack is not the blocker.** The guest's DirectX diagnostic runs its whole
+DirectDraw suite, including exclusive fullscreen mode, and passes every stage. A screenshot taken
+during the fullscreen stage shows the emulator in that mode.
+
+**What the silent exit probably is.** The retail executable's own strings include a message about
+failing to notify a launcher, alongside a shared-memory mapping call. It expects to be started by
+the launcher and to hand back a handle through that mapping. The launcher is the wrapped binary
+that cannot run. That fits the observed behaviour exactly: no window, no dialog, no log, and an
+immediate clean exit rather than a fault.
+
+**Controls that make the above trustworthy**, because three earlier rounds here drew conclusions
+from steps that had silently not happened:
+
+- A stock Windows program launched from the same command prompt opens normally, so the launch path
+  works and the game really is exiting on its own.
+- A directory listing inside the guest shows every injected file at its original size.
+- The registry import was run with its confirmation visible and reported success.
+- The crash dialog's detail pane was expanded and read, rather than the failure being summarised
+  from the title bar.
+
+**Still untried, and the most promising:** the base image ships a virtual-drive utility whose
+protection-emulation feature exists precisely to defeat this scheme. Mounting the disc image inside
+Windows through it, rather than attaching it from the emulator, would let the original installer and
+launcher run. The guest's system drive has too little free space for the install, but the injected
+drive reports 2 GB free and is writable, so the install would have to be directed there.
+
  
 
 Two traps when scripting the guest. Driving the Start menu without checking it opened sends the

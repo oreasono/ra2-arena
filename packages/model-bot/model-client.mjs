@@ -8,6 +8,7 @@
 export class ModelClient {
     #baseUrl; #apiKey; #name; #timeoutMs;
     calls = 0; promptTokens = 0; completionTokens = 0; failures = 0; totalLatencyMs = 0;
+    #warned = false;
 
     constructor({ baseUrl, apiKey, name, timeoutMs = 120000 } = {}) {
         this.#baseUrl = (baseUrl ?? process.env.MODEL_BASE_URL ?? "").replace(/\/$/, "");
@@ -38,7 +39,17 @@ export class ModelClient {
                     max_tokens: maxTokens,
                 }),
             });
-            if (!res.ok) { this.failures++; return null; }
+            if (!res.ok) {
+                this.failures++;
+                // A swallowed status reads exactly like a model that keeps answering badly, and has
+                // already cost this project several wrong conclusions. Say it once per client.
+                if (!this.#warned) {
+                    this.#warned = true;
+                    const body = await res.text().catch(() => "");
+                    console.error(`  ${this.#name}: HTTP ${res.status} from ${this.#baseUrl} -- ${body.slice(0, 200)}`);
+                }
+                return null;
+            }
             const body = await res.json();
             this.calls++;
             this.totalLatencyMs += Date.now() - started;

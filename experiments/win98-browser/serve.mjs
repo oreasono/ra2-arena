@@ -60,14 +60,16 @@ async function proxy(req, res, path) {
 // ships map packs, a type library and an IPX emulation component, and the game will not start
 // without them.
 const SKIP = /^(movies0[12]\.mix|movmd03\.mix)$/i;
+// Some builds ship those as four-byte stubs. Those must go in: the game checks they exist.
+const SKIP_MIN_BYTES = 1048576;
 // Walk one level of subdirectories too: the online-play components live in one of them, and a
 // top-level-only copy is not a complete install.
 const gameFiles = () => {
     const dir = process.env.GAME_DIR;
     const out = [];
     for (const n of readdirSync(dir)) {
-        if (SKIP.test(n)) continue;
         const st = statSync(join(dir, n));
+        if (SKIP.test(n) && st.size >= SKIP_MIN_BYTES) continue;
         if (st.isFile()) out.push(n);
         else if (st.isDirectory()) {
             for (const f of readdirSync(join(dir, n))) {

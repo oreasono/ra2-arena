@@ -18,6 +18,10 @@
 // the guest sees them. `-convertfatro` makes that disk read-only, which is what several instances
 // sharing one game disk want.
 //
+// Attaching a disc to a booted guest needs both halves. A bare drive number puts the image on the
+// hard-disk channel and the disc type is ignored; a bare drive letter makes a CD that disappears the
+// moment the guest boots and takes the machine over. Naming a letter *and* an IDE slot gives the
+// guest a real optical drive.
 // Query parameters: slot=N, sock=<backend>, owner=<owner>, c=<drive>, ro=1, payload=<url of a json
 // array of {path, b64}>, server=1 / connect=<peer> for IPX.
 const q = new URLSearchParams(location.search);
@@ -72,8 +76,8 @@ mouse_emulation=integration
 [dosbox]
 title=Windows 9x
 memsize=128
-[video]
 vmemsize=8
+[video]
 vesa modelist width limit=0
 vesa modelist height limit=0
 [dos]
@@ -103,7 +107,7 @@ mount d .
 dir d:\\ /w
 dir d:\\ra2
 ${mount(2, c)}
-${q.get("cd") ? `imgmount 4 d:\\${q.get("gamedir") ?? "Ra2"}\\${q.get("cd")} -t iso` : ""}
+${q.get("cd") ? `imgmount e: d:\\${q.get("gamedir") ?? "Ra2"}\\${q.get("cd")} -t iso -ide 2m` : ""}
 boot c: ${readOnly ? "-convertfatro" : "-convertfat"}
 `;
 

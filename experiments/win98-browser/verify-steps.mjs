@@ -75,9 +75,11 @@ await page.keyboard.press("Enter"); await page.waitForTimeout(5000);
 await shot("regedit-confirmed");
 await page.keyboard.press("Enter"); await page.waitForTimeout(3000);
 
-for (const [dll, label] of [["Blowfish.dll", "reg-blowfish"],
-                            [`Internet${B}Wolapi.dll`, "reg-wolapi"],
-                            [`Internet${B}WOLBrowser.dll`, "reg-wolbrowser"]]) {
+// Only register what this particular set actually ships; pointing at a path that does not exist
+// just produces a load failure that looks like a real one.
+const dlls = (process.env.REGISTER ?? "Blowfish.dll").split(",").filter(Boolean)
+    .map((n, i) => [n.replace(/\//g, B), `reg-${i}-${n.replace(/[^a-z0-9]/gi, "")}`]);
+for (const [dll, label] of dlls) {
     await step_(`regsvr32 ${GAME}${B}${dll}`, label, 11000);
     await page.keyboard.press("Enter"); await page.waitForTimeout(3000);
 }
