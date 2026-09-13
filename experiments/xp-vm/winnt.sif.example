@@ -1,0 +1,42 @@
+; Unattended answer file for Windows XP setup, placed as A:\WINNT.SIF on a 1.44MB floppy.
+; Build the floppy with the correct geometry or the BIOS cannot read it:
+;   dd if=/dev/zero of=unattend.img bs=512 count=2880
+;   newfs_msdos -F 12 -f 1440 <device>        # -f 1440 matters: spt=18 hds=2, not spt=32 hds=16
+; Note: some repacked XP ISOs ignore the floppy entirely and run setup interactively anyway.
+[Data]
+AutoPartition=1
+MsDosInitiated="0"
+UnattendedInstall="Yes"
+
+[Unattended]
+UnattendMode=FullUnattended
+OemSkipEula=Yes
+TargetPath=\WINDOWS
+FileSystem=NTFS
+Repartition=Yes
+
+[GuiUnattended]
+AdminPassword=CHANGE_ME
+EncryptedAdminPassword=NO
+AutoLogon=Yes
+AutoLogonCount=999
+OEMSkipRegional=1
+OemSkipWelcome=1
+TimeZone=210
+
+[UserData]
+ProductKey=XXXXX-XXXXX-XXXXX-XXXXX-XXXXX
+FullName="Arena"
+OrgName="Arena"
+ComputerName=RA2A
+
+[Display]
+BitsPerPel=16
+Xresolution=800
+YResolution=600
+
+[Identification]
+JoinWorkgroup=WORKGROUP
+
+[Networking]
+InstallDefaultComponents=Yes
