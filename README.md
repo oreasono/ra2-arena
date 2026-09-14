@@ -6,8 +6,20 @@ livestream content. It is a content project, not a hosted service.
 
 ## Status
 
-Started 2026-09-09. Feasibility study done, framework set. The headless engine runs on our own
-game files, and a spike shows several Windows 98 instances driven side by side in one browser.
+Started 2026-09-09. Feasibility study done, framework set. Two lines run today:
+
+- **Mode A (headless engine).** Initialises from our own game files (273 maps) and plays full
+  matches to a result, model versus model included (see "A model playing" below).
+- **Mode B (real Windows guests).** A containerised runtime boots two Windows XP guests with KVM on
+  one host, links them over an IPX LAN, and serves a live screenshot of each guest over HTTP. See
+  [experiments/xp-vm](experiments/xp-vm/). This replaced the earlier Windows 98 browser spike
+  ([experiments/win98-browser](experiments/win98-browser/)), a recorded dead-end: that emulator
+  build has no usable Ethernet backend, so two instances cannot play a LAN game.
+
+The Chrono Divide browser-client path ([experiments/cd-multiplayer](experiments/cd-multiplayer/)) is
+also a dead-end for now (asset import never issues a request); the engine line above is the Mode-A
+substrate instead.
+
 Read [docs/research/2026-09-09-feasibility.md](docs/research/2026-09-09-feasibility.md) first.
 
 ## Decisions so far
@@ -63,7 +75,7 @@ docs/              research, decisions, tournament rules
 | M3 | Mode B | Two models in two Chrome instances finish a match; live overlay; first stream |
 | M4 | Season 1 | 5-6 models; at least 30 Mode A games per pair; weekly Mode B showcase |
 
-Windows 98 track checklist (M0, two days max):
+Windows 98 track checklist (M0, two days max) — **superseded; kept for the record.** Mode B now uses the Windows XP line in [experiments/xp-vm](experiments/xp-vm/). The Windows 98 path is a dead-end (see the Status section):
 
 1. Windows 98 SE + RA2 in QEMU/KVM (pentium3 CPU model, Cirrus VGA, PCnet/RTL8139 NIC, `-rtc clock=vm`); RA2 runs at 800x600.
 2. Two VMs on one shared L2 segment (`-netdev socket,mcast=...`), IPX/SPX installed; an RA2 LAN game completes.
