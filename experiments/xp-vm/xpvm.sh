@@ -18,7 +18,11 @@
 set -u
 D="${VM_DIR:-$HOME/ra2vm}"
 QEMU="${QEMU_BIN:-qemu-system-i386}"
+RAM_MB="${RAM_MB:-384}"
 VM="${VM:-a}"; ROLE="${ROLE:-listen}"; VNCNUM="${VNCNUM:-3}"; PORT="${PORT:-7702}"
+case "$RAM_MB" in ''|*[!0-9]*) echo "RAM_MB must be an integer from 1 to 512" >&2; exit 2 ;; esac
+[ "$RAM_MB" -ge 1 ] && [ "$RAM_MB" -le 512 ] || {
+  echo "RAM_MB must be an integer from 1 to 512" >&2; exit 2; }
 case "$ROLE" in
   listen)  NET="socket,id=n0,listen=127.0.0.1:$PORT" ;;
   connect) NET="socket,id=n0,connect=127.0.0.1:$PORT" ;;
@@ -39,7 +43,7 @@ else
 fi
 
 exec "$QEMU" \
-  -machine pc -cpu pentium3 -m 1024 \
+  -machine pc -accel kvm -cpu pentium3 -m "$RAM_MB" \
   -hda "$D/xp$VM.qcow2" \
   $MEDIA \
   -vga cirrus \
@@ -48,5 +52,6 @@ exec "$QEMU" \
   ${TABLET:+-usb -device usb-tablet} \
   -object "filter-dump,id=dump0,netdev=n0,file=$D/xp$VM.pcap" \
   -monitor "unix:$D/xp$VM.mon,server,nowait" \
+  -pidfile "$D/xp$VM.pid" \
   -vnc ":$VNCNUM" \
   -display none -daemonize

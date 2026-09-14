@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Talk to a QEMU guest over its monitor socket: screenshots, keys, pointer.
 #
-# The guest runs on a separate machine, so every operation is an ssh round trip. Configure it with:
-#   VM_HOST   user@host of the machine running QEMU
+# The guest normally runs on another host; VM_HOST=local talks to an in-container guest directly.
+# Configure it with:
+#   VM_HOST   user@host of the machine running QEMU, or "local" inside its container
 #   VM_DIR    directory on that machine holding the disk images and monitor sockets
 #   VM_SSH    optional extra ssh options
 # Authentication is whatever your ssh setup provides -- use a key, not a password.
@@ -12,7 +13,16 @@ set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OUT="${ARENA_OUT:-$HERE/out}"; mkdir -p "$OUT"
 
-rsh() { ssh -o StrictHostKeyChecking=accept-new ${VM_SSH:-} "$VM_HOST" "$@"; }
+rsh() {
+  if [ "$VM_HOST" = local ]; then bash -c "$*"
+  else ssh -o StrictHostKeyChecking=accept-new ${VM_SSH:-} "$VM_HOST" "$@"
+  fi
+}
+fetch() {
+  if [ "$VM_HOST" = local ]; then cp "$1" "$2"
+  else scp -o StrictHostKeyChecking=accept-new ${VM_SSH:-} "$VM_HOST:$1" "$2"
+  fi
+}
 mon() { rsh "printf '%s\n' '$1' | nc -U $VM_DIR/$2.mon >/dev/null 2>&1"; }
 
 # shot <guest> <label> -- fetch one frame as PNG.
@@ -21,12 +31,13 @@ mon() { rsh "printf '%s\n' '$1' | nc -U $VM_DIR/$2.mon >/dev/null 2>&1"; }
 # re-rendered the PREVIOUS frame -- a "frozen screen" that survived even a reset and sent us hunting
 # a guest hang that was not happening.
 shot() {
-  local g="$1" label="${2:-shot}" ppm="$OUT/$g.ppm"
+  local g="$1" label="${2:-shot}"
+  local ppm="$OUT/$g.ppm"
   rm -f "$ppm"
   rsh "rm -f $VM_DIR/$g.ppm"
   mon "screendump $VM_DIR/$g.ppm" "$g"
   sleep 2
-  scp -o StrictHostKeyChecking=accept-new ${VM_SSH:-} "$VM_HOST:$VM_DIR/$g.ppm" "$ppm" || {
+  fetch "$VM_DIR/$g.ppm" "$ppm" || {
     echo "shot: transfer failed -- refusing to reuse the previous frame" >&2; return 1; }
   [ -s "$ppm" ] || { echo "shot: empty frame" >&2; return 1; }
   python3 "$HERE/ppm2png.py" "$ppm" "$OUT/$label.png"
