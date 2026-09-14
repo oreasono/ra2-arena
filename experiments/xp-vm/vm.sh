@@ -36,7 +36,8 @@ wait_file() {
 shot() {
   local g="$1" label="${2:-shot}"
   local ppm="$OUT/$g.ppm"
-  rm -f "$ppm"
+  local png="$OUT/$label.png"
+  rm -f "$ppm" "$png"
   rsh "rm -f $VM_DIR/$g.ppm"
   mon "screendump $VM_DIR/$g.ppm" "$g" || {
     echo "shot: monitor command failed" >&2; return 1; }
@@ -45,7 +46,7 @@ shot() {
   fetch "$VM_DIR/$g.ppm" "$ppm" || {
     echo "shot: transfer failed -- refusing to reuse the previous frame" >&2; return 1; }
   [ -s "$ppm" ] || { echo "shot: empty frame" >&2; return 1; }
-  python3 "$HERE/ppm2png.py" "$ppm" "$OUT/$label.png"
+  python3 "$HERE/ppm2png.py" "$ppm" "$png"
 }
 
 key()  { mon "sendkey $2" "$1"; }
