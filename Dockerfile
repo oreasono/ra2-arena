@@ -8,5 +8,6 @@ RUN apt-get update \
 WORKDIR /app
 COPY experiments/xp-vm/ /app/experiments/xp-vm/
 
+USER root
 EXPOSE 80
 ENTRYPOINT ["/app/experiments/xp-vm/entrypoint.sh"]
