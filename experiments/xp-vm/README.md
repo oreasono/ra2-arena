@@ -50,6 +50,30 @@ nothing happens.
 Then: host creates a game → joiner sees it listed → joins → host presses Start → joiner presses the
 flashing Accept → host presses Start again → both drop into the same live match.
 
+## Operating the container
+
+The public container surface is read-only: `/status` reports both guests, while `/a.png` and
+`/b.png` capture fresh frames. Drive the lobby from the Coolify container terminal with the existing
+monitor tool, using the runtime monitor names `xpa` and `xpb`:
+
+```sh
+export VM_HOST=local VM_DIR=/run/ra2-arena ARENA_OUT=/run/ra2-arena/screens
+VMCTL=/app/experiments/xp-vm/vm.sh
+$VMCTL shot xpa before-a
+$VMCTL shot xpb before-b
+$VMCTL point xpa X Y click       # replace X/Y with coordinates from the latest frame
+$VMCTL key xpa ret               # QEMU key names: ret, esc, up, down, and so on
+```
+
+Use `shot` after every action and keep the UTC time window for external verification. On `xpa`,
+open LAN and create a room; its frame should show the host room. On `xpb`, open LAN, confirm that
+room appears, and join it; the next `xpa` frame must show both players. Then send Start on `xpa`,
+Accept on `xpb`, and Start on `xpa` again. Final fresh frames from both guests must show the live
+match. The same frames are independently available at `/a.png` and `/b.png`.
+
+Healthy status is `{"ok": true, "vms": {"a": true, "b": true}}`. If either QEMU process is not
+running, `/status` returns HTTP 503 with that guest set to `false`.
+
 ## Why not Windows 98
 
 Recorded so nobody repeats it. On 98, creating a LAN game froze the guest permanently: no redraw,
