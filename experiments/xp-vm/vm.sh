@@ -23,7 +23,10 @@ fetch() {
   else scp -o StrictHostKeyChecking=accept-new ${VM_SSH:-} "$VM_HOST:$1" "$2"
   fi
 }
-mon() { rsh "printf '%s\n' '$1' | nc -U $VM_DIR/$2.mon >/dev/null 2>&1"; }
+mon() { rsh "printf '%s\n' '$1' | nc -q 1 -w 2 -U $VM_DIR/$2.mon >/dev/null 2>&1"; }
+wait_file() {
+  rsh "i=0; while [ ! -s '$1' ] && [ \"\$i\" -lt 20 ]; do sleep 0.1; i=\$((i+1)); done; [ -s '$1' ]"
+}
 
 # shot <guest> <label> -- fetch one frame as PNG.
 # Deletes both copies first and fails loudly if either step fails. An earlier version sent scp's
@@ -35,8 +38,10 @@ shot() {
   local ppm="$OUT/$g.ppm"
   rm -f "$ppm"
   rsh "rm -f $VM_DIR/$g.ppm"
-  mon "screendump $VM_DIR/$g.ppm" "$g"
-  sleep 2
+  mon "screendump $VM_DIR/$g.ppm" "$g" || {
+    echo "shot: monitor command failed" >&2; return 1; }
+  wait_file "$VM_DIR/$g.ppm" || {
+    echo "shot: framebuffer did not arrive" >&2; return 1; }
   fetch "$VM_DIR/$g.ppm" "$ppm" || {
     echo "shot: transfer failed -- refusing to reuse the previous frame" >&2; return 1; }
   [ -s "$ppm" ] || { echo "shot: empty frame" >&2; return 1; }

@@ -2,8 +2,9 @@
 import json
 import os
 import subprocess
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from threading import Lock
 from urllib.parse import urlsplit
 
 HERE = Path(__file__).resolve().parent
@@ -11,6 +12,7 @@ VM_DIR = Path(os.environ.get("VM_DIR", "/run/ra2-arena"))
 OUT = Path(os.environ.get("ARENA_OUT", VM_DIR / "screens"))
 PORT = int(os.environ.get("HTTP_PORT", "80"))
 ROUTES = {"/a.png": "xpa", "/b.png": "xpb"}
+LOCKS = {guest: Lock() for guest in ROUTES.values()}
 
 
 def vm_running(guest):
@@ -43,18 +45,23 @@ class Handler(BaseHTTPRequestHandler):
         if guest is None:
             self.reply(404, "text/plain; charset=utf-8", b"not found\n")
             return
+        if not LOCKS[guest].acquire(blocking=False):
+            self.reply(503, "text/plain; charset=utf-8", b"screenshot busy\n")
+            return
 
         label = guest[-1]
         env = os.environ | {"VM_HOST": "local", "VM_DIR": str(VM_DIR), "ARENA_OUT": str(OUT)}
         try:
             subprocess.run(
                 [HERE / "vm.sh", "shot", guest, label], env=env, check=True,
-                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=20,
+                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=4,
             )
             self.reply(200, "image/png", (OUT / f"{label}.png").read_bytes())
         except (OSError, subprocess.SubprocessError) as error:
             self.log_error("screenshot failed: %s", error)
             self.reply(503, "text/plain; charset=utf-8", b"screenshot unavailable\n")
+        finally:
+            LOCKS[guest].release()
 
 
-HTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
