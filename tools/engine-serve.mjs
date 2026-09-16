@@ -83,9 +83,11 @@ child.on("exit", (code) => {
         const replayBytes = statSync(replayPath).size;
         const replay = Replay.parse(replayBody.toString("utf8"));
         const replaySha256 = createHash("sha256").update(replayBody).digest("hex");
+        const turnEvents = replay.events.filter((x) => x.type === ReplayEventType.TurnActions);
+        const actionPlayers = new Set(turnEvents.flatMap((x) => x.payload.playerActions.map((p) => p.playerId)));
         if (replay.gameId !== evidence.result.matchId || replay.endTick !== evidence.result.endTick ||
             replay.gameOpts.humanPlayers.map((x) => x.name).sort().join() !== sides.map((x) => x.name).sort().join() ||
-            replay.events.filter((x) => x.type === ReplayEventType.TurnActions).length < 2 ||
+            turnEvents.length < 2 || actionPlayers.size < sides.length ||
             replayBytes !== evidence.result.replay.bytes || replaySha256 !== evidence.result.replay.sha256)
             throw new Error("replay does not match result");
         state = { state: "complete", model, sides: sides.map((x) => x.name),

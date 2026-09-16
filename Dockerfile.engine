@@ -8,7 +8,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --legacy-peer-deps --omit=dev
 COPY packages/model-bot/ packages/model-bot/
-COPY tools/model-match.mjs tools/engine-serve.mjs tools/assemble-engine-mix.sh tools/
+COPY tools/model-match.mjs tools/engine-serve.mjs tools/assemble-engine-mix.sh tools/make-mix-dir.sh tools/
 
 ENV MIX_DIR=/run/ra2-mix \
     RESULT_DIR=/run/engine-results \
