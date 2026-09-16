@@ -95,3 +95,9 @@ export function extractJson(text) {
     }
     return null;
 }
+
+export function isValidPlan(plan) {
+    return !!plan && typeof plan.notes === "string" && plan.notes.trim() !== "" &&
+        (plan.stance === "attack" || plan.stance === "defend") &&
+        Array.isArray(plan.build) && Array.isArray(plan.train);
+}

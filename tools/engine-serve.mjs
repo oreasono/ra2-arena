@@ -6,6 +6,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSyn
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ActionType, Replay, ReplayEventType } from "@chronodivide/game-api";
+import { isValidPlan } from "../packages/model-bot/model-client.mjs";
 
 const dir = process.env.RESULT_DIR ?? "/run/engine-results";
 const model = process.env.MODEL_NAME ?? "";
@@ -58,7 +59,7 @@ child.on("exit", (code) => {
             throw new Error("result does not prove two configured model sides");
         if (new Set(decisions.map((x) => x.side)).size !== 2 ||
             decisions.some((x) => x.matchId !== evidence.result.matchId || x.model !== model ||
-                !x.at || !x.prompt || !x.intent || x.latencyMs < 0))
+                !x.at || !x.prompt || !x.intent || x.latencyMs < 0 || x.valid !== isValidPlan(x.plan)))
             throw new Error("decision evidence incomplete");
         if (sides.some((side) => decisions.filter((x) => x.side === side.name).length !== side.decisions ||
             decisions.filter((x) => x.side === side.name && x.valid).length !== side.validDecisions))

@@ -9,7 +9,7 @@
 // building -- are handled here, identically for every model, so comparisons are not dominated by
 // who happens to emit better coordinates.
 import { Bot, OrderType, QueueType, ObjectType, QueueStatus } from "@chronodivide/game-api";
-import { extractJson } from "./model-client.mjs";
+import { extractJson, isValidPlan } from "./model-client.mjs";
 
 const QUEUE_OF = { [ObjectType.Building]: QueueType.Structures, [ObjectType.Infantry]: QueueType.Infantry,
                    [ObjectType.Vehicle]: QueueType.Vehicles, [ObjectType.Aircraft]: QueueType.Aircrafts };
@@ -242,7 +242,8 @@ export class ModelBot extends Bot {
         const view = this.#observe(game);
         const started = Date.now();
         const text = await this.#client.ask(SYSTEM, view, { maxTokens: 700 });
-        const plan = extractJson(text);
+        const parsed = extractJson(text);
+        const plan = isValidPlan(parsed) ? parsed : null;
         this.#decisions++;
         if (plan) this.#validDecisions++;
         this.#lastDecision = {
