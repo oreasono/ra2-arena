@@ -7,7 +7,7 @@
 //
 // Optional: MAP, CADENCE (ticks between decisions, 15 = one game second), MAX_CALLS, MAX_TICKS,
 // REPLAY_DIR, LOG_DIR.
-import { cdapi, Replay, ReplayEventType } from "@chronodivide/game-api";
+import { ActionType, cdapi, Replay, ReplayEventType } from "@chronodivide/game-api";
 import { SupalosaBot } from "@supalosa/chronodivide-bot/dist/bot/bot.js";
 import { Countries } from "@supalosa/chronodivide-bot/dist/bot/logic/common/utils.js";
 import { ModelClient } from "../packages/model-bot/model-client.mjs";
@@ -105,6 +105,10 @@ const tieBreakWinner = ranked.length === 2 ? ranked[0].side : null;
 const replayPath = game.saveReplay(process.env.REPLAY_DIR ?? ".");
 const replayBody = readFileSync(replayPath);
 const replay = Replay.parse(replayBody.toString("utf8"));
+const actionPlayerIds = new Set(replay.events.filter((x) => x.type === ReplayEventType.TurnActions)
+    .flatMap((x) => x.payload.playerActions)
+    .filter((x) => x.actions.some((a) => a.type !== ActionType.NoAction)).map((x) => x.playerId));
+const actionPlayers = [...actionPlayerIds].map((id) => replay.gameOpts.humanPlayers[id]?.name).filter(Boolean);
 for (const row of transcript) if (row.type === "decision") row.matchId = replay.gameId;
 const engineWinner = standing.length === 1 ? standing[0] : null;
 const tieBreak = !engineWinner && opponent === "model" ? {
@@ -130,7 +134,7 @@ const result = {
     replay: { path: "/match.rpl", file: basename(replayPath), bytes: statSync(replayPath).size,
         sha256: createHash("sha256").update(replayBody).digest("hex"), gameId: replay.gameId,
         gameTimestamp: replay.gameTimestamp, engineVersion: replay.engineVersion,
-        players: replay.gameOpts.humanPlayers.map((x) => x.name), endTick: replay.endTick,
+        players: replay.gameOpts.humanPlayers.map((x) => x.name), actionPlayers, endTick: replay.endTick,
         turnActionEvents: replay.events.filter((x) => x.type === ReplayEventType.TurnActions).length },
 };
 console.log(JSON.stringify(result, null, 2));

@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { Replay, ReplayEventType } from "@chronodivide/game-api";
+import { ActionType, Replay, ReplayEventType } from "@chronodivide/game-api";
 
 const dir = process.env.RESULT_DIR ?? "/run/engine-results";
 const model = process.env.MODEL_NAME ?? "";
@@ -83,11 +83,14 @@ child.on("exit", (code) => {
         const replayBytes = statSync(nextReplay).size;
         const replay = Replay.parse(replayBody.toString("utf8"));
         const replaySha256 = createHash("sha256").update(replayBody).digest("hex");
-        const turnEvents = replay.events.filter((x) => x.type === ReplayEventType.TurnActions);
-        const actionPlayers = new Set(turnEvents.flatMap((x) => x.payload.playerActions.map((p) => p.playerId)));
+        const actionPlayers = new Set(replay.events.filter((x) => x.type === ReplayEventType.TurnActions)
+            .flatMap((x) => x.payload.playerActions)
+            .filter((x) => x.actions.some((a) => a.type !== ActionType.NoAction))
+            .map((x) => replay.gameOpts.humanPlayers[x.playerId]?.name).filter(Boolean));
         if (replay.gameId !== evidence.result.matchId || replay.endTick !== evidence.result.endTick ||
             replay.gameOpts.humanPlayers.map((x) => x.name).sort().join() !== sides.map((x) => x.name).sort().join() ||
-            turnEvents.length < 2 || actionPlayers.size < sides.length ||
+            [...actionPlayers].sort().join() !== sides.map((x) => x.name).sort().join() ||
+            [...actionPlayers].sort().join() !== evidence.result.replay.actionPlayers.sort().join() ||
             replayBytes !== evidence.result.replay.bytes || replaySha256 !== evidence.result.replay.sha256)
             throw new Error("replay does not match result");
         resultBody = nextResult; decisionsBody = nextDecisions; replayPath = nextReplay;
