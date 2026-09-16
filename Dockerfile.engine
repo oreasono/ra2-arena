@@ -1,0 +1,21 @@
+FROM node:22-bookworm-slim
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends cabextract ca-certificates libarchive-tools \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --legacy-peer-deps --omit=dev
+COPY packages/model-bot/ packages/model-bot/
+COPY tools/model-match.mjs tools/engine-serve.mjs tools/assemble-engine-mix.sh tools/
+
+ENV MIX_DIR=/run/ra2-mix \
+    RESULT_DIR=/run/engine-results \
+    OPPONENT=model \
+    MAP=mp06t2.map \
+    CADENCE=300 \
+    MAX_TICKS=9000
+
+EXPOSE 80
+ENTRYPOINT ["/app/tools/assemble-engine-mix.sh"]

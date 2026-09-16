@@ -49,6 +49,7 @@ export class ModelBot extends Bot {
     #recent = []; #limitMinutes = 60; #attacks = 0;
     #intel = new Map(); #scoutId = null; #lastScout = -9999; #scoutsSent = 0;
     #owned = new Set(); #lost = 0; #lostAtLastDecision = 0; #threatened = false;
+    #lastDecision = null;
 
     constructor(name, country, { client, cadence = 150, maxCalls = 120, limitMinutes = 60, log = () => {} } = {}) {
         super(name, country);
@@ -67,6 +68,16 @@ export class ModelBot extends Bot {
     get scoutsSent() { return this.#scoutsSent; }
     get losses() { return this.#lost; }
     get intelSeen() { return this.#intel.size; }
+    get modelName() { return this.#client.name; }
+    get modelStats() { return this.#client.stats(); }
+    get lastDecision() { return this.#lastDecision; }
+
+    score() {
+        const units = this.player.getVisibleUnits("self", (r) =>
+            r.type !== ObjectType.Building && !r.harvester && !r.constructionYard);
+        const armyValue = units.reduce((sum, id) => sum + (this.game.getUnitData(id)?.rules.cost ?? 0), 0);
+        return { credits: this.player.getPlayerData().credits, combatUnits: units.length, armyValue };
+    }
 
     #intelSummary(game) {
         if (!this.#intel.size) return "nothing yet";
@@ -228,9 +239,14 @@ export class ModelBot extends Bot {
     async think(game) {
         if (this.#client.calls >= this.#maxCalls) return;
         const view = this.#observe(game);
+        const started = Date.now();
         const text = await this.#client.ask(SYSTEM, view, { maxTokens: 700 });
         const plan = extractJson(text);
         this.#decisions++;
+        this.#lastDecision = {
+            model: this.#client.name, prompt: view, latencyMs: Date.now() - started,
+            intent: plan?.notes ? String(plan.notes) : "unusable reply", valid: !!plan, plan,
+        };
         if (!plan) { this.#invalid++; this.#log(`${this.name}: unusable reply`); return; }
         this.#lastPlan = plan;
         if (plan.notes) { this.#recent.push(String(plan.notes).slice(0, 90)); if (this.#recent.length > 3) this.#recent.shift(); }
