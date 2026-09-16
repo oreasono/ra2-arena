@@ -68,11 +68,15 @@ child.on("exit", (code) => {
             throw new Error("decision ticks do not match result");
         if (evidence.result.endReason === "time-limit") {
             const scores = evidence.result.tieBreak?.scores ?? [];
-            const winner = [...scores].sort((a, b) => b.total - a.total || b.armyValue - a.armyValue ||
-                a.side.localeCompare(b.side))[0]?.side;
+            const ranked = [...scores].sort((a, b) => b.total - a.total || b.armyValue - a.armyValue);
+            const exactTie = scores.length === 2 && ranked[0].total === ranked[1].total &&
+                ranked[0].armyValue === ranked[1].armyValue;
+            const winner = exactTie ? null : ranked[0]?.side;
+            const decidedBy = exactTie ? "draw" : "tie-break";
             if (scores.length !== 2 || scores.some((x) => x.total !== x.credits + x.armyValue) ||
-                !winner || evidence.result.tieBreak.winner !== winner ||
-                evidence.result.winner !== winner) throw new Error("tie-break is not reproducible");
+                (!exactTie && !winner) || evidence.result.tieBreak.winner !== winner ||
+                evidence.result.tieBreak.decidedBy !== decidedBy || evidence.result.winner !== winner ||
+                evidence.result.decidedBy !== decidedBy) throw new Error("tie-break is not reproducible");
         }
         const nextResult = join(dir, "result.json"), nextDecisions = join(dir, "decisions.jsonl");
         const nextReplay = join(dir, "match.rpl");

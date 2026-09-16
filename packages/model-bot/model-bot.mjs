@@ -45,7 +45,7 @@ the force is as ready as it is going to get: send it.`;
 export class ModelBot extends Bot {
     #client; #cadence; #maxCalls; #log;
     #baseTile = null; #enemyStart = null; #deployed = false;
-    #lastPlan = null; #decisions = 0; #invalid = 0; #placementWarned = null;
+    #lastPlan = null; #decisions = 0; #validDecisions = 0; #invalid = 0; #placementWarned = null;
     #recent = []; #limitMinutes = 60; #attacks = 0;
     #intel = new Map(); #scoutId = null; #lastScout = -9999; #scoutsSent = 0;
     #owned = new Set(); #lost = 0; #lostAtLastDecision = 0; #threatened = false;
@@ -62,6 +62,7 @@ export class ModelBot extends Bot {
 
     get cadence() { return this.#cadence; }
     get decisions() { return this.#decisions; }
+    get validDecisions() { return this.#validDecisions; }
     get invalidPlans() { return this.#invalid; }
     get lastPlan() { return this.#lastPlan; }
     get attackOrders() { return this.#attacks; }
@@ -243,6 +244,7 @@ export class ModelBot extends Bot {
         const text = await this.#client.ask(SYSTEM, view, { maxTokens: 700 });
         const plan = extractJson(text);
         this.#decisions++;
+        if (plan) this.#validDecisions++;
         this.#lastDecision = {
             model: this.#client.name, prompt: view, latencyMs: Date.now() - started,
             intent: plan?.notes ? String(plan.notes) : "unusable reply", valid: !!plan, plan,

@@ -99,9 +99,10 @@ const wall = (Date.now() - t0) / 1000, ticks = game.getCurrentTick();
 const standing = game.getPlayerStats().filter((p) => !p.defeated).map((p) => p.name);
 const scores = thinkers.map((w) => ({ side: w.name, ...w.score(game.gameApi), total: 0 }))
     .map((s) => ({ ...s, total: s.credits + s.armyValue }));
-const ranked = [...scores].sort((a, b) => b.total - a.total || b.armyValue - a.armyValue ||
-    a.side.localeCompare(b.side));
-const tieBreakWinner = ranked.length === 2 ? ranked[0].side : null;
+const ranked = [...scores].sort((a, b) => b.total - a.total || b.armyValue - a.armyValue);
+const exactTie = ranked.length === 2 && ranked[0].total === ranked[1].total &&
+    ranked[0].armyValue === ranked[1].armyValue;
+const tieBreakWinner = ranked.length === 2 && !exactTie ? ranked[0].side : null;
 const replayPath = game.saveReplay(process.env.REPLAY_DIR ?? ".");
 const replayBody = readFileSync(replayPath);
 const replay = Replay.parse(replayBody.toString("utf8"));
@@ -112,8 +113,8 @@ const actionPlayers = [...actionPlayerIds].map((id) => replay.gameOpts.humanPlay
 for (const row of transcript) if (row.type === "decision") row.matchId = replay.gameId;
 const engineWinner = standing.length === 1 ? standing[0] : null;
 const tieBreak = !engineWinner && opponent === "model" ? {
-    rule: "highest credits + combat-unit build cost; then army value; then side id",
-    winner: tieBreakWinner, scores,
+    rule: "highest credits + combat-unit build cost; then army value; equal scores are a draw",
+    winner: tieBreakWinner, decidedBy: exactTie ? "draw" : "tie-break", scores,
 } : null;
 const result = {
     matchId: replay.gameId, status: "completed", startedAt, completedAt: new Date().toISOString(),
@@ -122,12 +123,12 @@ const result = {
     gameMinutes: +(ticks / 15 / 60).toFixed(1),
     wallSeconds: +wall.toFixed(1), thinkSeconds: +(thinkMs / 1000).toFixed(1),
     winner: engineWinner ?? tieBreakWinner,
-    decidedBy: engineWinner ? "elimination" : tieBreak ? "tie-break" : "undecided",
+    decidedBy: engineWinner ? "elimination" : tieBreak?.decidedBy ?? "undecided",
     engineWinner, tieBreak,
     standing, model: client.stats(),
     opponent, decisionBudget: maxCalls,
     sides: thinkers.map((w) => ({ name: w.name, model: w.modelName, ...w.modelStats,
-                                  decisions: w.decisions, validDecisions: w.decisions - w.invalidPlans,
+                                  decisions: w.decisions, validDecisions: w.validDecisions,
                                   unusable: w.invalidPlans,
                                   attackOrders: w.attackOrders, scouts: w.scoutsSent, losses: w.losses })),
     players: game.getPlayerStats().map((p) => ({ name: p.name, country: p.country.name, defeated: p.defeated, credits: p.credits })),
