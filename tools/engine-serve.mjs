@@ -74,13 +74,13 @@ child.on("exit", (code) => {
                 !winner || evidence.result.tieBreak.winner !== winner ||
                 evidence.result.winner !== winner) throw new Error("tie-break is not reproducible");
         }
-        resultBody = join(dir, "result.json"); decisionsBody = join(dir, "decisions.jsonl");
-        replayPath = join(dir, "match.rpl");
-        copyFileSync(join(dir, evidence.result.replay.file), replayPath);
-        writeFileSync(resultBody, JSON.stringify(evidence.result, null, 2) + "\n");
-        writeFileSync(decisionsBody, decisions.map((x) => JSON.stringify(x)).join("\n") + "\n");
-        const replayBody = readFileSync(replayPath);
-        const replayBytes = statSync(replayPath).size;
+        const nextResult = join(dir, "result.json"), nextDecisions = join(dir, "decisions.jsonl");
+        const nextReplay = join(dir, "match.rpl");
+        copyFileSync(join(dir, evidence.result.replay.file), nextReplay);
+        writeFileSync(nextResult, JSON.stringify(evidence.result, null, 2) + "\n");
+        writeFileSync(nextDecisions, decisions.map((x) => JSON.stringify(x)).join("\n") + "\n");
+        const replayBody = readFileSync(nextReplay);
+        const replayBytes = statSync(nextReplay).size;
         const replay = Replay.parse(replayBody.toString("utf8"));
         const replaySha256 = createHash("sha256").update(replayBody).digest("hex");
         const turnEvents = replay.events.filter((x) => x.type === ReplayEventType.TurnActions);
@@ -90,6 +90,7 @@ child.on("exit", (code) => {
             turnEvents.length < 2 || actionPlayers.size < sides.length ||
             replayBytes !== evidence.result.replay.bytes || replaySha256 !== evidence.result.replay.sha256)
             throw new Error("replay does not match result");
+        resultBody = nextResult; decisionsBody = nextDecisions; replayPath = nextReplay;
         state = { state: "complete", model, sides: sides.map((x) => x.name),
             matchId: evidence.result.matchId,
             artifacts: { result: "/result.json", replay: "/match.rpl", decisions: "/decisions.jsonl" },
