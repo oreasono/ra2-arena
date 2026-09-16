@@ -97,7 +97,7 @@ while (!game.isFinished() && game.getCurrentTick() < maxTicks) {
 
 const wall = (Date.now() - t0) / 1000, ticks = game.getCurrentTick();
 const standing = game.getPlayerStats().filter((p) => !p.defeated).map((p) => p.name);
-const scores = thinkers.map((w) => ({ side: w.name, ...w.score(), total: 0 }))
+const scores = thinkers.map((w) => ({ side: w.name, ...w.score(game.gameApi), total: 0 }))
     .map((s) => ({ ...s, total: s.credits + s.armyValue }));
 const ranked = [...scores].sort((a, b) => b.total - a.total || b.armyValue - a.armyValue ||
     a.side.localeCompare(b.side));
@@ -122,7 +122,7 @@ const result = {
     engineWinner, tieBreak,
     standing, model: client.stats(),
     opponent, decisionBudget: maxCalls,
-    sides: thinkers.map((w) => ({ name: w.name, model: w.modelName, ...w.modelStats(),
+    sides: thinkers.map((w) => ({ name: w.name, model: w.modelName, ...w.modelStats,
                                   decisions: w.decisions, validDecisions: w.decisions - w.invalidPlans,
                                   unusable: w.invalidPlans,
                                   attackOrders: w.attackOrders, scouts: w.scoutsSent, losses: w.losses })),

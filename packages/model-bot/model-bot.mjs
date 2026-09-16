@@ -72,10 +72,10 @@ export class ModelBot extends Bot {
     get modelStats() { return this.#client.stats(); }
     get lastDecision() { return this.#lastDecision; }
 
-    score() {
+    score(game) {
         const units = this.player.getVisibleUnits("self", (r) =>
             r.type !== ObjectType.Building && !r.harvester && !r.constructionYard);
-        const armyValue = units.reduce((sum, id) => sum + (this.game.getUnitData(id)?.rules.cost ?? 0), 0);
+        const armyValue = units.reduce((sum, id) => sum + (game.getUnitData(id)?.rules.cost ?? 0), 0);
         return { credits: this.player.getPlayerData().credits, combatUnits: units.length, armyValue };
     }
 
