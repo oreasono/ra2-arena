@@ -32,6 +32,12 @@ asset_count=0
 while IFS= read -r -d '' asset; do
     name="$(basename "$asset")"; lower="${name,,}"
     case "$lower" in
+        *md*.mix|expand01.mix)
+            echo "skipping YR/MD MIX: $lower" | tee -a "$RESULT_DIR/match.log" >&2
+            continue
+            ;;
+    esac
+    case "$lower" in
         language.mix|langmd.mix) target="$WORK_DIR/content/depot_2229852" ;;
         *) target="$WORK_DIR/content/depot_2229851" ;;
     esac
