@@ -2,7 +2,7 @@
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ActionType, Replay, ReplayEventType } from "@chronodivide/game-api";
@@ -14,6 +14,9 @@ if (model !== "gpt-6-astra") throw new Error("E1 requires MODEL_NAME=gpt-6-astra
 mkdirSync(dir, { recursive: true });
 let state = { state: "running", model, sides: ["ModelA", "ModelB"] };
 let resultBody, decisionsBody, replayPath;
+const matchLog = join(dir, "match.log");
+const logTail = () => existsSync(matchLog)
+    ? readFileSync(matchLog, "utf8").split(/\r?\n/).slice(-30).join("\n").trim() : "";
 
 const json = (res, code, value) => {
     const body = Buffer.from(JSON.stringify(value, null, 2) + "\n");
@@ -35,18 +38,23 @@ const server = createServer((req, res) => {
     if (path === "/result.json") return resultBody ? artifact(res, resultBody, "application/json") : json(res, 425, state);
     if (path === "/decisions.jsonl") return decisionsBody ? artifact(res, decisionsBody, "application/x-ndjson") : json(res, 425, state);
     if (path === "/match.rpl") return artifact(res, replayPath, "application/octet-stream");
+    if (path === "/match.log") return artifact(res, matchLog, "text/plain; charset=utf-8");
     return json(res, 404, { error: "not found" });
 });
 server.listen(Number(process.env.PORT ?? 80), "0.0.0.0");
 
 const matchScript = fileURLToPath(new URL("./model-match.mjs", import.meta.url));
 const child = spawn(process.execPath, [matchScript], {
-    stdio: "inherit", env: { ...process.env, OPPONENT: "model", LOG_DIR: dir, REPLAY_DIR: dir },
+    stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, OPPONENT: "model", LOG_DIR: dir, REPLAY_DIR: dir },
 });
-child.on("error", (error) => { state = { state: "failed", error: error.message }; });
+for (const stream of [child.stdout, child.stderr]) stream.on("data", (chunk) => {
+    process[stream === child.stdout ? "stdout" : "stderr"].write(chunk);
+    appendFileSync(matchLog, chunk);
+});
+child.on("error", (error) => { state = { state: "failed", error: [error.message, logTail()].filter(Boolean).join("\n") }; });
 child.on("exit", (code) => {
     try {
-        if (code !== 0) throw new Error(`match exited ${code}`);
+        if (code !== 0) throw new Error(["match exited " + code, logTail()].filter(Boolean).join("\n"));
         const log = readdirSync(dir).filter((x) => /^match-.*\.json$/.test(x)).sort().at(-1);
         if (!log) throw new Error("match log missing");
         const evidence = JSON.parse(readFileSync(join(dir, log), "utf8"));
