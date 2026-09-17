@@ -52,7 +52,7 @@ for (const stream of [child.stdout, child.stderr]) stream.on("data", (chunk) => 
     appendFileSync(matchLog, chunk);
 });
 child.on("error", (error) => { state = { state: "failed", error: [error.message, logTail()].filter(Boolean).join("\n") }; });
-child.on("exit", (code) => {
+child.on("close", (code) => {
     try {
         if (code !== 0) throw new Error(["match exited " + code, logTail()].filter(Boolean).join("\n"));
         const log = readdirSync(dir).filter((x) => /^match-.*\.json$/.test(x)).sort().at(-1);
