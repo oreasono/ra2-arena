@@ -15,6 +15,13 @@ mkdirSync(dir, { recursive: true });
 let state = { state: "running", model, sides: ["ModelA", "ModelB"] };
 let resultBody, decisionsBody, replayPath;
 const matchLog = join(dir, "match.log");
+const redact = (value) => value
+    .split(process.env.MODEL_API_KEY || "\0").join(process.env.MODEL_API_KEY ? "[REDACTED]" : "")
+    .replace(/Bearer\s+\S+/gi, "Bearer [REDACTED]")
+    .replace(/(https?:\/\/)[^/\s@]+@/gi, "$1[REDACTED]@");
+const redactFields = (value) => redact(value)
+    .replace(/([?&](?:token|secret|key|api[_-]?key|password|auth(?:orization)?)[^=]*=)[^&#\s]+/gi, "$1[REDACTED]")
+    .replace(/(["']?(?:token|secret|key|api[_-]?key|password|auth(?:orization)?)["']?\s*[:=]\s*["']?)[^,\s}\"']+/gi, "$1[REDACTED]");
 const logTail = () => existsSync(matchLog)
     ? readFileSync(matchLog, "utf8").split(/\r?\n/).slice(-30).join("\n").trim() : "";
 
@@ -49,7 +56,7 @@ const child = spawn(process.execPath, [matchScript], {
 });
 for (const stream of [child.stdout, child.stderr]) stream.on("data", (chunk) => {
     process[stream === child.stdout ? "stdout" : "stderr"].write(chunk);
-    appendFileSync(matchLog, chunk);
+    appendFileSync(matchLog, redactFields(chunk.toString()));
 });
 child.on("error", (error) => { state = { state: "failed", error: [error.message, logTail()].filter(Boolean).join("\n") }; });
 child.on("close", (code) => {
