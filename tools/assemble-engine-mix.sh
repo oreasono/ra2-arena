@@ -32,8 +32,12 @@ asset_count=0
 while IFS= read -r -d '' asset; do
     name="$(basename "$asset")"; lower="${name,,}"
     case "$lower" in
-        *md*.mix|expand01.mix)
-            echo "skipping YR/MD MIX: $lower" | tee -a "$RESULT_DIR/match.log" >&2
+        *md*.mix)
+            echo "skipping MD/YR MIX: $lower" | tee -a "$RESULT_DIR/match.log" >&2
+            continue
+            ;;
+        expand01.mix)
+            echo "skipping RA2 overlay for compatibility A/B: $lower" | tee -a "$RESULT_DIR/match.log" >&2
             continue
             ;;
     esac
