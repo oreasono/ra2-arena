@@ -46,12 +46,17 @@ mkdirSync(logDir, { recursive: true });
 // OPPONENT=model puts a second model-driven player on the other side, which is the arrangement the
 // project is actually for: one agent per player.
 const opponent = process.env.OPPONENT ?? "scripted";
+const main = async () => {
 const client = new ModelClient();
 const transcript = [];
 const log = (m) => { console.log(`  ${m}`); transcript.push({ at: Date.now(), text: m }); };
 const startedAt = new Date().toISOString();
 
-await cdapi.init(process.env.MIX_DIR);
+try {
+    await cdapi.init(process.env.MIX_DIR);
+} catch (e) {
+    die("cdapi.init", e);
+}
 const limitMinutes = Math.round(maxTicks / 15 / 60);
 const modelBot = new ModelBot("ModelA", Countries.USA, { client, cadence, maxCalls, limitMinutes, log });
 const secondBot = opponent === "model"
@@ -144,3 +149,9 @@ writeFileSync(`${logDir}/match-${stamp}.json`, JSON.stringify({ result, transcri
 console.log("replay:", replayPath);
 console.log("log:", `${logDir}/match-${stamp}.json`);
 game.dispose();
+};
+try {
+    await main();
+} catch (e) {
+    die("model-match", e);
+}

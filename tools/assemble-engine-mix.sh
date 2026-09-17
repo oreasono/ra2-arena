@@ -51,5 +51,7 @@ done
 [ -s "$WORK_DIR/content/depot_2229851/ra2.mix" ] || { echo "required asset missing after extraction: ra2.mix" >&2; exit 1; }
 [ -s "$WORK_DIR/content/depot_2229852/language.mix" ] || { echo "required asset missing after extraction: language.mix" >&2; exit 1; }
 LANG_DEPOT=2229852 /app/tools/make-mix-dir.sh "$WORK_DIR/content" "$MIX_DIR"
+echo "MIX_DIR .mix files:" | tee -a "$RESULT_DIR/match.log" >&2
+find "$MIX_DIR" -maxdepth 1 -type f -iname '*.mix' -exec basename {} \; | sort | sed 's/^/  /' | tee -a "$RESULT_DIR/match.log" >&2
 echo "MIX_DIR ready from retail ISO: $asset_count archives/files"
 exec node /app/tools/engine-serve.mjs
