@@ -26,7 +26,7 @@ while IFS= read -r -d '' cab; do
     out="$WORK_DIR/cabs/$cab_ok"; mkdir -p "$out"
     if cabextract -q -L -d "$out" "$cab"; then cab_ok=$((cab_ok + 1)); else rm -rf "$out"; fi
 done < <(find "$WORK_DIR/disc" -type f -iname '*.cab' -print0)
-[ "$cab_ok" -gt 0 ] || { echo "no extractable cabinet found in $ISO" >&2; exit 1; }
+[ "$cab_ok" -gt 0 ] || echo "no extractable cabinet found in $ISO; continuing with flat image contents" >&2
 
 asset_count=0
 while IFS= read -r -d '' asset; do
