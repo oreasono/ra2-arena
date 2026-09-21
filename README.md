@@ -1,5 +1,7 @@
 # ra2-arena
 
+**English** · [简体中文](README.zh-CN.md)
+
 An arena where large language models play *Command & Conquer: Red Alert 2* against each other:
 round-robin seasons across many maps, Bradley-Terry / Elo rankings, and the whole thing produced as
 livestream content. It is a content project, not a hosted service.
@@ -30,7 +32,7 @@ Read [docs/research/2026-09-09-feasibility.md](docs/research/2026-09-09-feasibil
 | 2 | **Two match modes, built together** | Mode A: API turn-based (headless engine, game paused while models think). Mode B: real computer use (each model drives a real browser client, in real time). Both share one tournament core. |
 | 3 | **Engine: Chrono Divide + `@chronodivide/game-api`** | Rationale in the feasibility study. |
 | 4 | **Windows 98 track = candidate backend for Mode B** | Original RA2 binaries in a farm of QEMU/KVM Windows 98 VMs on one Linux host; IPX over a multicast virtual LAN; QMP for pause, screenshots and input. Time-boxed validation in M0; dropped if it does not work. |
-| 5 | **Public repository, English only** | Nothing that cannot be public goes in here. |
+| 5 | **Public repository, English + Simplified Chinese** | Nothing that cannot be public goes in here. Game/OS assets are never committed; the README only links preservation mirrors for people who already own the games (see [Game files](#game-files)). |
 
 Hard rules:
 
@@ -197,9 +199,20 @@ season takes to run.
 
 ## Game files
 
-You need a retail copy of Red Alert 2; nothing here ships game assets. On Steam the game is app
-2229850, and its Windows depots can be downloaded on macOS or Linux too, from the client console
-(`steam://open/console`, or launch Steam with `-console`):
+**You must own the games.** This project ships no game or OS assets, and nothing licensed is
+committed here. The download links below are community-preservation mirrors, provided only as a
+convenience for people who **already own a legitimate copy**. *Red Alert 2* is © Electronic Arts;
+Windows XP is © Microsoft. Don't download them unless you own the corresponding license; if a rights
+holder objects, the links come out.
+
+### Red Alert 2 (both modes)
+
+The engine reads Red Alert 2's `*.mix` archives — base game only; the assembler skips the Yuri's
+Revenge / expansion archives, so an image that bundles RA2 + Yuri's Revenge is fine.
+
+**From Steam** (app 2229850) — best for local development. Its Windows depots can be downloaded on
+macOS or Linux too, from the client console (`steam://open/console`, or launch Steam with
+`-console`):
 
 ```
 download_depot 2229850 2229851 4928885831751969588
@@ -217,6 +230,12 @@ tools/make-mix-dir.sh
 MIX_DIR=~/ra2-mix node tools/engine-smoke.mjs
 ```
 
+**From a disc image** — used by the containerised engine (`Dockerfile.engine`). A full-game ISO with
+`.mix` files at the root works directly; the container's `tools/assemble-engine-mix.sh` extracts it
+into `MIX_DIR` at start (base RA2 only; it skips the Yuri's Revenge archives). Preservation mirror
+(RA2 + Yuri's Revenge, USA/Europe):
+<https://archive.org/details/command-conquer-red-alert-2-yuris-revenge-usa-europe>
+
 Three things that cost time the first time round:
 
 - **The engine rejects symlinks.** A `MIX_DIR` of symlinks fails with
@@ -231,6 +250,16 @@ Three things that cost time the first time round:
 Measured on an Apple M4 with the base depot plus English: 273 maps, and a 3000-tick match with idle
 agents simulates at roughly 35k ticks per second. That figure is an upper bound with no orders and
 no combat; a real bot with pathfinding is far slower.
+
+### Windows XP (Mode B only)
+
+Mode B installs Red Alert 2 inside two Windows XP guests, so it also needs XP install media and your
+own product key.
+
+- Windows XP Professional SP3 — preservation mirror:
+  <https://archive.org/details/windows-xp-professional-sp-3-updated_202212> → save it as `winxp.iso`.
+- Put **your own** product key in `winnt.sif` (copy `experiments/xp-vm/winnt.sif.example`).
+- Full build-and-run steps: [experiments/xp-vm/README.md](experiments/xp-vm/README.md).
 
 ## Requirements
 
