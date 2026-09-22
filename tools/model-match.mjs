@@ -134,7 +134,7 @@ const result = {
     opponent, decisionBudget: maxCalls,
     sides: thinkers.map((w) => ({ name: w.name, model: w.modelName, ...w.modelStats,
                                   decisions: w.decisions, validDecisions: w.validDecisions,
-                                  unusable: w.invalidPlans,
+                                  unusable: w.invalidPlans, rejectedOrders: w.rejectedOrders,
                                   attackOrders: w.attackOrders, scouts: w.scoutsSent, losses: w.losses })),
     players: game.getPlayerStats().map((p) => ({ name: p.name, country: p.country.name, defeated: p.defeated, credits: p.credits })),
     replay: { path: "/match.rpl", file: basename(replayPath), bytes: statSync(replayPath).size,

@@ -44,8 +44,9 @@ the force is as ready as it is going to get: send it.`;
 
 export class ModelBot extends Bot {
     #client; #cadence; #maxCalls; #log;
-    #baseTile = null; #enemyStart = null; #deployed = false;
-    #lastPlan = null; #decisions = 0; #validDecisions = 0; #invalid = 0; #placementWarned = null;
+    #baseTile = null; #enemyStart = null;
+    #lastPlan = null; #decisions = 0; #validDecisions = 0; #unusable = 0; #rejectedOrders = 0;
+    #placementWarned = null;
     #recent = []; #limitMinutes = 60; #attacks = 0;
     #intel = new Map(); #scoutId = null; #lastScout = -9999; #scoutsSent = 0;
     #owned = new Set(); #lost = 0; #lostAtLastDecision = 0; #threatened = false;
@@ -63,7 +64,8 @@ export class ModelBot extends Bot {
     get cadence() { return this.#cadence; }
     get decisions() { return this.#decisions; }
     get validDecisions() { return this.#validDecisions; }
-    get invalidPlans() { return this.#invalid; }
+    get invalidPlans() { return this.#unusable; }
+    get rejectedOrders() { return this.#rejectedOrders; }
     get lastPlan() { return this.#lastPlan; }
     get attackOrders() { return this.#attacks; }
     get scoutsSent() { return this.#scoutsSent; }
@@ -102,7 +104,7 @@ export class ModelBot extends Bot {
 
     // Runs every tick. Only mechanics live here; nothing that counts as a decision.
     onGameTick(game) {
-        if (!this.#deployed) this.#deployMcv(game);
+        this.#deployMcv(game);
         this.#keepHarvestersWorking(game);
         this.#placeFinishedBuildings(game);
         this.#rememberEnemy(game);
@@ -114,7 +116,7 @@ export class ModelBot extends Bot {
         // The vehicle to unpack is the one that turns into something, not the one flagged as a
         // construction yard: that flag belongs to the finished building, so filtering on it matches
         // nothing and the base is never founded.
-        if (this.#hasConstructionYard()) { this.#deployed = true; return; }
+        if (this.#hasConstructionYard()) return;
         const mcvs = this.player.getVisibleUnits("self",
             (r) => r.type === ObjectType.Vehicle && !!r.deploysInto);
         if (!mcvs.length) return;
@@ -248,14 +250,17 @@ export class ModelBot extends Bot {
         if (plan) this.#validDecisions++;
         this.#lastDecision = {
             model: this.#client.name, prompt: view, latencyMs: Date.now() - started,
-            intent: plan?.notes ? String(plan.notes) : "unusable reply", valid: !!plan, plan,
+            intent: plan?.notes ? String(plan.notes) : "unusable reply", valid: !!plan,
+            unusable: !plan, rejectedOrders: 0, plan,
         };
-        if (!plan) { this.#invalid++; this.#log(`${this.name}: unusable reply`); return; }
+        if (!plan) { this.#unusable++; this.#log(`${this.name}: unusable reply`); return; }
         this.#lastPlan = plan;
         if (plan.notes) { this.#recent.push(String(plan.notes).slice(0, 90)); if (this.#recent.length > 3) this.#recent.shift(); }
         if (plan.stance === "attack") this.#attacks++;
         this.#lostAtLastDecision = this.#lost;
+        const rejectedOrders = this.#rejectedOrders;
         this.#apply(game, plan);
+        this.#lastDecision.rejectedOrders = this.#rejectedOrders - rejectedOrders;
     }
 
     #observe(game) {
@@ -316,9 +321,9 @@ export class ModelBot extends Bot {
         }
         const queue = (name, count) => {
             const rules = byName.get(String(name).toUpperCase());
-            if (!rules) { this.#invalid++; return false; }
+            if (!rules) { this.#rejectedOrders++; return false; }
             const q = QUEUE_OF[rules.type];
-            if (q === undefined) return false;
+            if (q === undefined) { this.#rejectedOrders++; return false; }
             // Decisions come round faster than production finishes, so without this the same order
             // is issued every turn and the queue fills with duplicates.
             const pending = this.player.production.getQueueData(q);
@@ -336,7 +341,10 @@ export class ModelBot extends Bot {
         if (plan.stance === "attack" && this.#enemyStart) {
             this.player.actions.orderUnits(army, OrderType.AttackMove, this.#enemyStart.x, this.#enemyStart.y);
         } else if (plan.stance === "defend" && this.#baseTile) {
-            this.player.actions.orderUnits(army, OrderType.Move, this.#baseTile.rx + 3, this.#baseTile.ry + 3);
+            const defenders = army.filter((id) => id !== this.#scoutId);
+            if (defenders.length) {
+                this.player.actions.orderUnits(defenders, OrderType.Move, this.#baseTile.rx + 3, this.#baseTile.ry + 3);
+            }
         }
     }
 }
